@@ -99,7 +99,7 @@ function Root() {
       <View style={styles.topbar}>
         <View style={styles.brand}>
           <MotionIcon />
-          <Text style={styles.title}>Vas-Y!</Text>
+          <Text style={styles.title}>TuCAN!</Text>
         </View>
         <View style={styles.right}>
           <TouchableOpacity style={styles.gearBtn} onPress={() => setProfileOpen(true)}>

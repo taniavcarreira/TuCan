@@ -78,7 +78,7 @@ export default function AuthScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <Text style={styles.title}>Vas-Y!</Text>
+      <Text style={styles.title}>TuCAN!</Text>
       <Text style={styles.subtitle}>
         {mode === 'signin' ? 'Entra na tua conta' : 'Cria a tua conta'}
       </Text>

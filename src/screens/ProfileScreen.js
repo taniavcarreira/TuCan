@@ -97,6 +97,10 @@ export default function ProfileScreen({ onClose }) {
       <TouchableOpacity style={styles.resetBtn} disabled={resetting} onPress={resetPassword}>
         {resetting ? <ActivityIndicator color={COLORS.ink} /> : <Text style={styles.resetBtnText}>Reset Password</Text>}
       </TouchableOpacity>
+
+      <TouchableOpacity style={styles.signOutBtn} onPress={() => supabase.auth.signOut()}>
+        <Text style={styles.signOutBtnText}>Terminar sessão</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -125,4 +129,7 @@ const styles = StyleSheet.create({
 
   resetBtn: { marginTop: 12, padding: 15, borderRadius: 8, borderWidth: 2, borderColor: COLORS.line, alignItems: 'center' },
   resetBtnText: { color: COLORS.ink, fontFamily: FONTS.bodyBold, fontSize: 14 },
+
+  signOutBtn: { marginTop: 12, padding: 15, borderRadius: 8, borderWidth: 2, borderColor: COLORS.c9, alignItems: 'center' },
+  signOutBtnText: { color: COLORS.c9, fontFamily: FONTS.bodyBold, fontSize: 14 },
 });

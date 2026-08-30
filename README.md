@@ -1,4 +1,4 @@
-# Vas-Y! — React Native (Expo)
+# TuCAN! — React Native (Expo)
 
 Conversão da versão web (HTML/CSS/JS de artifact) para uma app Expo/React
 Native, pronta para correr no telemóvel via Expo Go e, mais tarde, para
