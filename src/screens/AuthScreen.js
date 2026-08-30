@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { COLORS, FONTS } from '../theme';
@@ -24,6 +24,24 @@ export default function AuthScreen() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
+
+  // Depois de voltar do login com Google (web), o Supabase devolve o
+  // resultado embutido no final da própria URL (depois do #). Se algo
+  // correu mal do lado dele (ex.: URL de retorno não autorizada), o
+  // erro fica silencioso — este efeito apanha-o e mostra-o no ecrã, em
+  // vez de simplesmente voltarmos ao formulário sem explicação.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const raw = window.location.hash || window.location.search || '';
+    if (!raw || raw.length < 2) return;
+    const parsed = new URLSearchParams(raw.slice(1));
+    const desc = parsed.get('error_description') || parsed.get('error');
+    if (desc) {
+      setError(decodeURIComponent(desc.replace(/\+/g, ' ')));
+      // Limpa a URL para não repetir o erro num refresh futuro.
+      window.history.replaceState(null, '', window.location.pathname + window.location.search.split('#')[0]);
+    }
+  }, []);
 
   async function submit() {
     setError(''); setInfo('');
