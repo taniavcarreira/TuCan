@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "Vas-Y!",
+    "slug": "vasy-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#121417",
+    "splash": {
+      "backgroundColor": "#121417"
+    },
+    "ios": {
+      "bundleIdentifier": "com.tania.vasy",
+      "supportsTablet": false
+    },
+    "android": {
+      "package": "com.tania.vasy",
+      "adaptiveIcon": {
+        "backgroundColor": "#121417"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-font"
+    ],
+    "experiments": {
+      "baseUrl": "/TuCan"
+    }
+  }
+}

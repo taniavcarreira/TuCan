@@ -1,0 +1,7 @@
+node_modules/
+dist/
+dist-preview/
+.expo/
+*.log
+.DS_Store
+package.json.bak
