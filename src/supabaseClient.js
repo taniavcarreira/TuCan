@@ -1,6 +1,7 @@
 import 'react-native-url-polyfill/auto';
 import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 // Fill these in — Project Settings → API in your Supabase dashboard.
 // For production, prefer environment variables (Expo supports the
@@ -18,6 +19,10 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     storage: AsyncStorage,
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: false,
+    // No web, deixa o Supabase apanhar a sessão sozinho quando o Google
+    // devolve o utilizador à página (ver src/utils/googleAuth.js). No
+    // telemóvel isto é feito manualmente via setSession(), por isso fica
+    // desligado lá.
+    detectSessionInUrl: Platform.OS === 'web',
   },
 });
