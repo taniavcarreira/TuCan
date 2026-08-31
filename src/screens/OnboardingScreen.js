@@ -102,7 +102,7 @@ function PitchSlide() {
       <Text style={styles.pitchTitle}>TuCAN<Text style={{ color: COLORS.mostarda }}>!</Text></Text>
       <Text style={styles.pitchSlogan}>Yes. Tu podes.</Text>
       <Text style={styles.pitchBody}>
-        Não é mais uma app de hábitos com gráficos bonitos que ninguém volta a abrir depois da segunda semana.
+        Mais do que uma app de hábitos com gráficos bonitos, a TuCAN é o bater de asas que te faz voltar diariamente — mesmo depois da segunda semana.
         {'\n\n'}
         É a pergunta simples que te fazes todos os dias:{' '}
         <Text style={styles.pitchBodyStrong}>hoje, cumpri o que prometi a mim própria?</Text>{' '}
