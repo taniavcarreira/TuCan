@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { supabase } from '../supabaseClient';
 import { isoMonday, fmt } from '../utils/dates';
 import { blankDay, migrateDay, seedFields } from '../utils/fields';
+import { getCachedKey, getOrCreateDeviceKey, encryptProfileField, decryptProfileField } from '../utils/profileCrypto';
 
 const DataContext = createContext(null);
 
@@ -145,17 +146,50 @@ export function DataProvider({ user, children }) {
   // supabase.auth.onAuthStateChange and refreshes `user` whenever
   // updateUser() below fires a USER_UPDATED event, so `profile` just
   // derives straight from the `user` prop instead of duplicating state.
+  //
+  // Nome/apelido are end-to-end encrypted (see src/utils/profileCrypto.js)
+  // — stored as `first_name_enc`/`last_name_enc` ciphertext, decrypted
+  // here using a key that only ever lives on this device (derived from
+  // the account's password at login, or a random per-device key for
+  // Google accounts). Older accounts may still carry the pre-encryption
+  // plain `first_name`/`last_name` fields — those are intentionally
+  // ignored from here on (never read, never written again).
+  const [profileKey, setProfileKey] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      let key = await getCachedKey(userId);
+      if (!key) key = await getOrCreateDeviceKey(userId);
+      if (!cancelled) setProfileKey(key);
+    })();
+    return () => { cancelled = true; };
+  }, [userId]);
+
   const profile = useMemo(() => ({
     email: user.email || '',
-    firstName: user.user_metadata?.first_name || '',
-    lastName: user.user_metadata?.last_name || '',
+    firstName: decryptProfileField(user.user_metadata?.first_name_enc, profileKey),
+    lastName: decryptProfileField(user.user_metadata?.last_name_enc, profileKey),
     avatarId: user.user_metadata?.avatar_id || null,
-  }), [user]);
+  }), [user, profileKey]);
 
   const updateProfile = useCallback(async (fields) => {
-    const { error } = await supabase.auth.updateUser({ data: fields });
+    const { first_name, last_name, ...rest } = fields;
+    const payload = { ...rest };
+    if (first_name !== undefined || last_name !== undefined) {
+      const key = profileKey || await getOrCreateDeviceKey(userId);
+      if (first_name !== undefined) {
+        payload.first_name_enc = encryptProfileField(first_name, key);
+        payload.first_name = null; // limpa qualquer resto em texto simples de contas antigas
+      }
+      if (last_name !== undefined) {
+        payload.last_name_enc = encryptProfileField(last_name, key);
+        payload.last_name = null;
+      }
+    }
+    const { error } = await supabase.auth.updateUser({ data: payload });
     if (error) throw error;
-  }, []);
+  }, [profileKey, userId]);
 
   // ---------- trend data (Semana tab accordion) ----------
   // Fetches a wider date range of `days` rows than the single week

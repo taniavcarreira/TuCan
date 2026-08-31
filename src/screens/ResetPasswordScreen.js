@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { COLORS, FONTS } from '../theme';
 import { supabase } from '../supabaseClient';
+import { deriveKeyFromPassword, cacheKey } from '../utils/profileCrypto';
 
 // Reached only by clicking the link in the "recuperar password" email
 // (see AuthScreen.js's 'recover' mode) — App.js detects `type=recovery`
@@ -33,10 +34,19 @@ export default function ResetPasswordScreen({ hasSession, onDone, onRequestNewLi
     }
     setLoading(true);
     try {
-      const { error: err } = await supabase.auth.updateUser({ password });
+      const { data: updateData, error: err } = await supabase.auth.updateUser({ password });
       if (err) {
         setError(err.message);
         return;
+      }
+      // A password mudou, por isso a chave de encriptação do nome/apelido
+      // (que deriva dela — ver src/utils/profileCrypto.js) também muda.
+      // O nome/apelido antigos ficam ilegíveis (para todos, incluindo a
+      // própria pessoa) — aceitável, é só um dado cosmético; a app trata
+      // isso como "por preencher" e a pessoa escreve-o de novo se quiser.
+      if (updateData?.user?.id) {
+        const key = deriveKeyFromPassword(password, updateData.user.id);
+        await cacheKey(updateData.user.id, key);
       }
       setDone(true);
     } catch (err) {

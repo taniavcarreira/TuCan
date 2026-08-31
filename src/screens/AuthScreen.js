@@ -6,6 +6,7 @@ import { supabase } from '../supabaseClient';
 import { signInWithGoogle } from '../utils/googleAuth';
 import { checkEmailStatus } from '../utils/authChecks';
 import BrandMarkIcon from '../components/BrandMarkIcon';
+import { deriveKeyFromPassword, cacheKey } from '../utils/profileCrypto';
 
 function GoogleIcon() {
   return (
@@ -89,10 +90,18 @@ export default function AuthScreen() {
         return;
       }
 
-      const { error: err } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      const { data: signInData, error: err } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (err) {
         setNotice({ kind: 'error', text: 'Password incorreta.', action: { label: 'Reinicia a password', onPress: switchToRecover } });
         return;
+      }
+      // A chave de encriptação do nome/apelido deriva da password — nunca
+      // é enviada à Supabase, só fica guardada neste dispositivo (ver
+      // src/utils/profileCrypto.js). Feito aqui, enquanto ainda temos a
+      // password em memória (o próprio campo do formulário).
+      if (signInData?.user?.id) {
+        const key = deriveKeyFromPassword(password, signInData.user.id);
+        await cacheKey(signInData.user.id, key);
       }
       // sucesso — o onAuthStateChange no App.js trata do resto
     } catch (err) {
@@ -115,9 +124,16 @@ export default function AuthScreen() {
     }
     setLoading(true);
     try {
-      const { error: err } = await supabase.auth.signUp({ email: email.trim(), password });
-      if (err) setNotice({ kind: 'error', text: err.message });
-      else setNotice({ kind: 'info', text: 'Conta criada. Consoante as definições do teu projeto Supabase, pode ser preciso confirmar por email antes de entrares.' });
+      const { data: signUpData, error: err } = await supabase.auth.signUp({ email: email.trim(), password });
+      if (err) {
+        setNotice({ kind: 'error', text: err.message });
+        return;
+      }
+      if (signUpData?.user?.id) {
+        const key = deriveKeyFromPassword(password, signUpData.user.id);
+        await cacheKey(signUpData.user.id, key);
+      }
+      setNotice({ kind: 'info', text: 'Conta criada. Consoante as definições do teu projeto Supabase, pode ser preciso confirmar por email antes de entrares.' });
     } catch (err) {
       setNotice({ kind: 'error', text: err?.message || 'Algo correu mal ao criar a conta. Tenta de novo.' });
     } finally {
