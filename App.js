@@ -31,14 +31,6 @@ function GearIcon({ color }) {
     </Svg>
   );
 }
-function MotionIcon() {
-  return (
-    <Svg width={26} height={26} viewBox="0 0 32 32" fill="none">
-      <Path d="M4 22 L14 22 L14 8 L26 8" stroke={COLORS.c1} strokeWidth={3.4} strokeLinecap="square" />
-      <Path d="M20 3 L27 8 L20 13" stroke={COLORS.agua} strokeWidth={3.4} strokeLinecap="square" strokeLinejoin="miter" fill="none" />
-    </Svg>
-  );
-}
 function PersonIcon({ color }) {
   return (
     <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.2}>
@@ -151,7 +143,6 @@ function Root() {
       <StatusBar style="light" />
       <View style={styles.topbar}>
         <View style={styles.brand}>
-          <MotionIcon />
           <Text style={styles.title}>TuCAN!</Text>
         </View>
         <View style={styles.right}>

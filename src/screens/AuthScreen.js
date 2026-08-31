@@ -5,6 +5,7 @@ import { COLORS, FONTS } from '../theme';
 import { supabase } from '../supabaseClient';
 import { signInWithGoogle } from '../utils/googleAuth';
 import { checkEmailStatus } from '../utils/authChecks';
+import BrandMarkIcon from '../components/BrandMarkIcon';
 
 function GoogleIcon() {
   return (
@@ -183,6 +184,9 @@ export default function AuthScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <View style={styles.brandMarkWrap}>
+        <BrandMarkIcon size={40} bg={COLORS.bg} rotate={-90} />
+      </View>
       <Text style={styles.title}>TuCAN!</Text>
       <Text style={styles.subtitle}>
         {mode === 'signin' ? 'Entra na tua conta' : mode === 'signup' ? 'Cria a tua conta' : 'Recuperar password'}
@@ -268,6 +272,7 @@ export default function AuthScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.bg, padding: 24, justifyContent: 'center' },
+  brandMarkWrap: { alignItems: 'center', marginBottom: 10 },
   title: { fontFamily: FONTS.display, fontSize: 32, color: COLORS.ink, textAlign: 'center', marginBottom: 4 },
   subtitle: { color: COLORS.inkSoft, textAlign: 'center', marginBottom: 8, fontFamily: FONTS.bodyRegular, fontSize: 13 },
   recoverLede: { color: COLORS.inkSoft, textAlign: 'center', marginBottom: 20, fontFamily: FONTS.bodyRegular, fontSize: 12.5, lineHeight: 18 },

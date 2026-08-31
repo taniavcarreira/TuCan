@@ -9,9 +9,23 @@ import { COLORS } from '../theme';
 // partir deste mesmo desenho) e como ícone de "a minha conta" na topbar
 // da app (ver App.js). Geometria idêntica ao SVG do tutorial — manter os
 // dois em sincronia se o desenho voltar a mudar.
-export default function BrandMarkIcon({ size = 20, bg = COLORS.bg }) {
+// `rotate` gira o desenho (graus, sentido horário) à volta do seu
+// próprio centro — 0 é a orientação original do tutorial (pin, ponta
+// para baixo). Por omissão fica a 180° (de cabeça para baixo), que era
+// o resultado do "flip vertical" pedido inicialmente — como o desenho é
+// simétrico esquerda-direita, um flip vertical e uma rotação de 180°
+// dão exatamente o mesmo resultado visual. Cada sítio onde o ícone
+// aparece pode escolher a sua própria rotação (ver AuthScreen.js e
+// App.js para os valores em uso).
+export default function BrandMarkIcon({ size = 20, bg = COLORS.bg, rotate = 180 }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      style={rotate ? { transform: [{ rotate: `${rotate}deg` }] } : undefined}
+    >
       <Path
         d="M12 3c4 0 7 2.8 7 7 0 3.6-2.2 6-4.3 7.6L12 21l-2.7-3.4C7.2 16 5 13.6 5 10c0-4.2 3-7 7-7z"
         fill={COLORS.mostarda}
