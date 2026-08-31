@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Platform } from 'react-native';
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
-import { COLORS, FONTS } from '../theme';
+import { COLORS, FONTS, NAV_HEIGHT } from '../theme';
 import { useData } from '../context/DataContext';
 import { isoMonday, fmt, fmtShort, monthLabelPt, todayISO } from '../utils/dates';
 
@@ -96,7 +96,7 @@ export default function TreinoScreen() {
   const sorted = [...sessions].sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id).slice(0, 30);
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={{ paddingBottom: 24 }}>
+    <ScrollView style={styles.screen} contentContainerStyle={{ paddingBottom: NAV_HEIGHT + 24 }}>
       <View style={styles.formCard}>
         <Text style={styles.formTitle}>Registar treino</Text>
 

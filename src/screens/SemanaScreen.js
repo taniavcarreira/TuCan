@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, TextInput, StyleSheet, ScrollView } from 'react-native';
-import { COLORS, FONTS, textColorFor } from '../theme';
+import { COLORS, FONTS, textColorFor, NAV_HEIGHT } from '../theme';
 import { useData } from '../context/DataContext';
 import { fieldOk, fieldValue, decimalsOf } from '../utils/fields';
 import { DAYS, isoMonday, fmtShort } from '../utils/dates';
@@ -45,7 +45,7 @@ export default function SemanaScreen() {
   const moodAvg = moodCount ? (moodSum / moodCount).toFixed(1) : '—';
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={{ paddingBottom: 24 }}>
+    <ScrollView style={styles.screen} contentContainerStyle={{ paddingBottom: NAV_HEIGHT + 24 }}>
       <View style={styles.weekNav}>
         <TouchableOpacity style={styles.navBtn} onPress={() => {
           const prev = new Date(currentMonday); prev.setDate(prev.getDate() - 7);

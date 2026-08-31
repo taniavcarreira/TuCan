@@ -59,6 +59,13 @@ export default function AuthScreen() {
         if (err) setError(err.message);
         else setInfo('Conta criada. Consoante as definições do teu projeto Supabase, pode ser preciso confirmar por email antes de entrares.');
       }
+    } catch (err) {
+      // Antes, um erro "a sério" aqui (rede em baixo, armazenamento do
+      // browser bloqueado — ex.: modo privado/navegador de app como o do
+      // WhatsApp/Instagram — em vez de uma simples password errada) ficava
+      // completamente silencioso: o botão parecia não fazer nada. Agora
+      // mostra-se sempre alguma coisa, mesmo que genérica.
+      setError(err?.message || 'Algo correu mal ao tentar entrar. Tenta noutro browser (ex.: abre o link no Safari/Chrome em vez de dentro do WhatsApp) e tenta de novo.');
     } finally {
       setLoading(false);
     }
