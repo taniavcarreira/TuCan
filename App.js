@@ -11,6 +11,7 @@ import { COLORS, FONTS } from './src/theme';
 import { supabase } from './src/supabaseClient';
 import { DataProvider, useData } from './src/context/DataContext';
 import AuthScreen from './src/screens/AuthScreen';
+import OnboardingScreen from './src/screens/OnboardingScreen';
 import HojeScreen from './src/screens/HojeScreen';
 import SemanaScreen from './src/screens/SemanaScreen';
 import TreinoScreen from './src/screens/TreinoScreen';
@@ -57,6 +58,19 @@ function WebFrame({ children }) {
       <View style={styles.webFrame}>{children}</View>
     </View>
   );
+}
+
+// Shown whenever there's no active session: the onboarding tutorial
+// first, then AuthScreen. Plain local state (not persisted) is
+// intentional — a fresh instance of this component mounts every time
+// `session` drops to null (including after "Terminar sessão"), so the
+// tutorial reappears every time someone lands on the login screen.
+function LoggedOutFlow() {
+  const [showAuth, setShowAuth] = useState(false);
+  if (!showAuth) {
+    return <OnboardingScreen onDone={() => setShowAuth(true)} />;
+  }
+  return <AuthScreen />;
 }
 
 function Root() {
@@ -164,7 +178,7 @@ export default function App() {
   if (!session) {
     return (
       <WebFrame>
-        <AuthScreen />
+        <LoggedOutFlow />
       </WebFrame>
     );
   }
