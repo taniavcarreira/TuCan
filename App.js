@@ -20,9 +20,8 @@ import ConfigScreen from './src/screens/ConfigScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import BottomNav from './src/components/BottomNav';
 import Confetti from './src/components/Confetti';
-import ToucanAvatar from './src/components/ToucanAvatar';
 import InAppBrowserBanner from './src/components/InAppBrowserBanner';
-import { DEFAULT_AVATAR } from './src/utils/avatars';
+import BrandMarkIcon from './src/components/BrandMarkIcon';
 
 function GearIcon({ color }) {
   return (
@@ -157,7 +156,7 @@ function Root() {
         </View>
         <View style={styles.right}>
           <TouchableOpacity style={styles.gearBtn} onPress={() => setProfileOpen(true)}>
-            <ToucanAvatar hat={DEFAULT_AVATAR.hat} top={DEFAULT_AVATAR.top} base={DEFAULT_AVATAR.base} leg={DEFAULT_AVATAR.leg} size={16} />
+            <BrandMarkIcon size={17} bg={COLORS.card} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.gearBtn} onPress={() => setConfigOpen(true)}>
             <GearIcon color={COLORS.inkSoft} />
@@ -205,6 +204,20 @@ export default function App() {
     setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
     return () => listener.subscription.unsubscribe();
   }, []);
+
+  // Web-only: assim que uma sessão fica confirmada (mesmo logo a seguir
+  // a um regresso de OAuth/recuperação de password), limpa qualquer
+  // access_token/refresh_token/type=recovery que tenha ficado na URL.
+  // O próprio Supabase já lê esses tokens sozinho ao carregar a página,
+  // mas se não limpar por completo o "#" da barra de endereço, um
+  // próximo signInWithOAuth() que reutilize essa URL como redirectTo
+  // herda esse resto — e o regresso do Google acrescenta-lhe um segundo
+  // "#access_token=...", dando uma URL "##..." que o Supabase já não
+  // consegue interpretar. Isto já causou um bug real: login com Google,
+  // logout, login com Google outra vez → ficava impossível entrar.
+  useEffect(() => {
+    if (session) cleanAuthUrl();
+  }, [session]);
 
   let content;
   if (!fontsLoaded || session === undefined) {

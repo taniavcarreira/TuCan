@@ -32,9 +32,21 @@ export async function signInWithGoogle() {
     // bloqueiam). O Supabase apanha a sessão sozinho quando a página
     // recarrega de volta (detectSessionInUrl: true, em
     // supabaseClient.js, só ativo no web).
+    //
+    // IMPORTANTE: usar sempre a URL "limpa" (sem hash/query), nunca
+    // `window.location.href` tal como está. Se um login anterior tiver
+    // deixado alguma coisa depois de um "#" na barra de endereço (mesmo
+    // que seja só um "#" vazio), usar `.href` aqui apanhava esse
+    // resto e o Supabase, ao voltar do Google, limitava-se a acrescentar
+    // "#access_token=..." a seguir — resultando numa URL só com "##"
+    // que o Supabase já não conseguia interpretar, e a pessoa ficava
+    // presa sem conseguir entrar (bug real: login Google > logout >
+    // login Google outra vez > nunca mais entra). Construir a partir de
+    // `origin` + `pathname` garante que nunca herdamos esse resto.
+    const cleanRedirectTo = window.location.origin + window.location.pathname;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: window.location.href },
+      options: { redirectTo: cleanRedirectTo },
     });
     if (error) throw error;
     return null; // a página vai navegar para fora daqui, nunca chega a devolver
