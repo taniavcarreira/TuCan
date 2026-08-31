@@ -12,6 +12,7 @@ import { supabase } from './src/supabaseClient';
 import { DataProvider, useData } from './src/context/DataContext';
 import AuthScreen from './src/screens/AuthScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
+import ResetPasswordScreen from './src/screens/ResetPasswordScreen';
 import HojeScreen from './src/screens/HojeScreen';
 import SemanaScreen from './src/screens/SemanaScreen';
 import TreinoScreen from './src/screens/TreinoScreen';
@@ -77,6 +78,24 @@ function isOAuthCallback() {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
   const raw = (window.location.hash || '') + (window.location.search || '');
   return /access_token=|refresh_token=|provider_token=|error=|error_description=/i.test(raw);
+}
+
+// Web-only: true when the URL is specifically a "reset password" email
+// link (Supabase tags these `type=recovery`, distinct from a normal
+// OAuth callback above). Checked separately, and takes priority over
+// everything else in App() below — clicking that link both logs the
+// person in (via the same token-in-URL mechanism as Google) *and* means
+// they still need to actually set a new password, so neither
+// LoggedOutFlow nor Root is the right screen to land on yet.
+function isPasswordRecoveryUrl() {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
+  const raw = (window.location.hash || '') + (window.location.search || '');
+  return /type=recovery/i.test(raw);
+}
+
+function cleanAuthUrl() {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+  window.history.replaceState(null, '', window.location.pathname + window.location.search.split('#')[0]);
 }
 
 // Shown whenever there's no active session: the onboarding tutorial
@@ -174,6 +193,7 @@ export default function App() {
   });
 
   const [session, setSession] = useState(undefined); // undefined = still checking, null = logged out
+  const [passwordRecovery, setPasswordRecovery] = useState(() => isPasswordRecoveryUrl());
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -192,6 +212,17 @@ export default function App() {
       <View style={styles.loading}>
         <ActivityIndicator color={COLORS.electro} size="large" />
       </View>
+    );
+  } else if (passwordRecovery) {
+    // Clicking the emailed recovery link already logged the person in
+    // (see isPasswordRecoveryUrl above) — `hasSession` is just a safety
+    // net for an expired/reused link, where that never happened.
+    content = (
+      <ResetPasswordScreen
+        hasSession={!!session}
+        onDone={() => { setPasswordRecovery(false); cleanAuthUrl(); }}
+        onRequestNewLink={() => { setPasswordRecovery(false); cleanAuthUrl(); }}
+      />
     );
   } else if (!session) {
     content = <LoggedOutFlow />;
