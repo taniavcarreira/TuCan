@@ -20,6 +20,7 @@ import ProfileScreen from './src/screens/ProfileScreen';
 import BottomNav from './src/components/BottomNav';
 import Confetti from './src/components/Confetti';
 import ToucanAvatar from './src/components/ToucanAvatar';
+import InAppBrowserBanner from './src/components/InAppBrowserBanner';
 import { DEFAULT_AVATAR } from './src/utils/avatars';
 
 function GearIcon({ color }) {
@@ -60,13 +61,33 @@ function WebFrame({ children }) {
   );
 }
 
+// Web-only: true when the current URL looks like the page just landed
+// back from an OAuth redirect (Google, via Supabase) — an access/refresh
+// token, a provider token, or an error, appended to the hash or query
+// string. A full-page redirect like this reloads the whole app from
+// scratch, which remounts `LoggedOutFlow` below; without this check its
+// local state would always reset to "show onboarding first", so anyone
+// finishing the Google login would be bounced straight back into the
+// 5-slide tutorial instead of into the app — an endless loop, since
+// pressing "Continuar com o Google" again just repeats the same
+// redirect. Detecting the callback lets us skip onboarding and render
+// AuthScreen directly, so it can pick up the returning session (or show
+// the actual error, via its own useEffect) instead of hiding it.
+function isOAuthCallback() {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
+  const raw = (window.location.hash || '') + (window.location.search || '');
+  return /access_token=|refresh_token=|provider_token=|error=|error_description=/i.test(raw);
+}
+
 // Shown whenever there's no active session: the onboarding tutorial
-// first, then AuthScreen. Plain local state (not persisted) is
-// intentional — a fresh instance of this component mounts every time
-// `session` drops to null (including after "Terminar sessão"), so the
-// tutorial reappears every time someone lands on the login screen.
+// first, then AuthScreen (unless `isOAuthCallback()` says we should skip
+// straight to AuthScreen, see above). Otherwise, plain local state (not
+// persisted) is intentional — a fresh instance of this component mounts
+// every time `session` drops to null (including after "Terminar
+// sessão"), so the tutorial reappears every time someone lands on the
+// login screen from scratch.
 function LoggedOutFlow() {
-  const [showAuth, setShowAuth] = useState(false);
+  const [showAuth, setShowAuth] = useState(() => isOAuthCallback());
   if (!showAuth) {
     return <OnboardingScreen onDone={() => setShowAuth(true)} />;
   }
@@ -165,34 +186,37 @@ export default function App() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
+  let content;
   if (!fontsLoaded || session === undefined) {
-    return (
-      <WebFrame>
-        <View style={styles.loading}>
-          <ActivityIndicator color={COLORS.electro} size="large" />
-        </View>
-      </WebFrame>
+    content = (
+      <View style={styles.loading}>
+        <ActivityIndicator color={COLORS.electro} size="large" />
+      </View>
     );
-  }
-
-  if (!session) {
-    return (
-      <WebFrame>
-        <LoggedOutFlow />
-      </WebFrame>
+  } else if (!session) {
+    content = <LoggedOutFlow />;
+  } else {
+    content = (
+      <DataProvider user={session.user}>
+        <Root />
+      </DataProvider>
     );
   }
 
   return (
-    <WebFrame>
-      <DataProvider user={session.user}>
-        <Root />
-      </DataProvider>
-    </WebFrame>
+    <View style={styles.appOuter}>
+      {/* Shown above absolutely everything, on every screen, whenever the
+          page is running inside WhatsApp/Instagram/etc.'s embedded
+          browser — Google refuses OAuth there, and some of these also
+          break plain email/password login (see InAppBrowserBanner.js). */}
+      <InAppBrowserBanner />
+      <WebFrame>{content}</WebFrame>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  appOuter: { flex: 1, backgroundColor: COLORS.bg },
   safe: { flex: 1, backgroundColor: COLORS.bg },
   loading: { flex: 1, backgroundColor: COLORS.bg, alignItems: 'center', justifyContent: 'center' },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6 },
