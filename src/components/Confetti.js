@@ -5,14 +5,18 @@ import { useAudioPlayer } from 'expo-audio';
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const COLORS = ['#C1552B', '#566331', '#E3AC2E', '#0F847F', '#29D3FF', '#F3E8AE'];
 const PIECES = 30;
-const POP_SOUND = require('../../assets/sounds/confetti-pop.wav');
+// Coro sintetizado de pássaros exóticos (não é uma gravação real — ver
+// scripts/make_exotic_birds_call.py) que toca no momento Perfect!,
+// substituindo o antigo "pop" de confetis.
+const PERFECT_SOUND = require('../../assets/sounds/perfect-exotic-birds.wav');
 
 // Call `trigger` (a number that changes, e.g. a timestamp) to fire a new
-// confetti burst + pop sound. Rendered at the very top of the app (see
-// App.js) so it always falls in front of everything — topbar, tabs,
-// bottom nav — rather than being clipped to whichever screen fired it.
+// confetti burst + celebration sound. Rendered at the very top of the
+// app (see App.js) so it always falls in front of everything — topbar,
+// tabs, bottom nav — rather than being clipped to whichever screen
+// fired it.
 export default function Confetti({ trigger }) {
-  const player = useAudioPlayer(POP_SOUND);
+  const player = useAudioPlayer(PERFECT_SOUND);
   const anims = useRef(
     Array.from({ length: PIECES }, () => new Animated.Value(0))
   ).current;
