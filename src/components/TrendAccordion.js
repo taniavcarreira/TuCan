@@ -3,8 +3,9 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { COLORS, FONTS } from '../theme';
 import { currentScore, maxScore } from '../utils/fields';
 import { monthLabelPt, fmt } from '../utils/dates';
+import { useLanguage } from '../i18n/LanguageContext';
 
-function bucketsFor(period) {
+function bucketsFor(period, lang) {
   const now = new Date();
   const list = [];
   if (period === 'year') {
@@ -15,7 +16,7 @@ function bucketsFor(period) {
   } else {
     for (let i = 11; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      list.push({ key: d.getFullYear() + '-' + d.getMonth(), label: monthLabelPt(d.getFullYear(), d.getMonth()) });
+      list.push({ key: d.getFullYear() + '-' + d.getMonth(), label: monthLabelPt(d.getFullYear(), d.getMonth(), lang) });
     }
   }
   return list;
@@ -35,6 +36,7 @@ function rangeFor(period) {
 // needs a much wider date range than the single week SemanaScreen
 // normally loads.
 export default function TrendAccordion({ loadTrendDays, customFields }) {
+  const { t, language } = useLanguage();
   const [expanded, setExpanded] = useState(false);
   const [period, setPeriod] = useState('month');
   const [loading, setLoading] = useState(false);
@@ -60,7 +62,7 @@ export default function TrendAccordion({ loadTrendDays, customFields }) {
   }
 
   const max = maxScore(customFields);
-  const list = bucketsFor(period);
+  const list = bucketsFor(period, language);
   const buckets = list.map((b) => ({ ...b, sum: 0, n: 0 }));
   if (days) {
     const byKey = {};
@@ -79,14 +81,14 @@ export default function TrendAccordion({ loadTrendDays, customFields }) {
   return (
     <View style={styles.card}>
       <TouchableOpacity style={styles.header} onPress={toggle}>
-        <Text style={styles.title}>Tendência mensal / anual</Text>
+        <Text style={styles.title}>{t('trend.title')}</Text>
         <Text style={styles.chevron}>{expanded ? '−' : '+'}</Text>
       </TouchableOpacity>
 
       {expanded && (
         <View>
           <View style={styles.periodToggle}>
-            {[['month', 'Mês'], ['year', 'Ano']].map(([key, label]) => (
+            {[['month', t('treino.periodMonth')], ['year', t('treino.periodYear')]].map(([key, label]) => (
               <TouchableOpacity
                 key={key}
                 style={[styles.periodBtn, period === key && styles.periodBtnActive]}
@@ -98,7 +100,7 @@ export default function TrendAccordion({ loadTrendDays, customFields }) {
           </View>
 
           {loading ? (
-            <Text style={styles.loadingText}>A carregar…</Text>
+            <Text style={styles.loadingText}>{t('trend.loading')}</Text>
           ) : (
             <View style={styles.barChart}>
               {rendered.map((b, i) => (
@@ -111,7 +113,7 @@ export default function TrendAccordion({ loadTrendDays, customFields }) {
             </View>
           )}
           <Text style={styles.footNote}>
-            Média do score diário (score/máximo) em cada {period === 'year' ? 'ano' : 'mês'}.
+            {period === 'year' ? t('trend.footNoteYear') : t('trend.footNoteMonth')}
           </Text>
         </View>
       )}

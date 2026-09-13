@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { COLORS, FONTS } from '../theme';
 import { supabase } from '../supabaseClient';
+import { useLanguage } from '../i18n/LanguageContext';
 import { deriveKeyFromPassword, cacheKey } from '../utils/profileCrypto';
 
 // Reached only by clicking the link in the "recuperar password" email
@@ -15,6 +16,7 @@ import { deriveKeyFromPassword, cacheKey } from '../utils/profileCrypto';
 // If it did, `supabase.auth.updateUser` below uses that same session to
 // set the new password; no separate "log in first" step needed.
 export default function ResetPasswordScreen({ hasSession, onDone, onRequestNewLink }) {
+  const { t } = useLanguage();
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -25,11 +27,11 @@ export default function ResetPasswordScreen({ hasSession, onDone, onRequestNewLi
   async function submit() {
     setError('');
     if (!password || password.length < 6) {
-      setError('A password precisa de pelo menos 6 caracteres.');
+      setError(t('reset.errTooShort'));
       return;
     }
     if (password !== confirm) {
-      setError('As passwords não coincidem.');
+      setError(t('reset.errMismatch'));
       return;
     }
     setLoading(true);
@@ -39,9 +41,9 @@ export default function ResetPasswordScreen({ hasSession, onDone, onRequestNewLi
         setError(err.message);
         return;
       }
-      // A password mudou, por isso a chave de encriptação do nome/apelido
+      // A password mudou, por isso a chave de encriptação do username
       // (que deriva dela — ver src/utils/profileCrypto.js) também muda.
-      // O nome/apelido antigos ficam ilegíveis (para todos, incluindo a
+      // O username antigo fica ilegível (para todos, incluindo a
       // própria pessoa) — aceitável, é só um dado cosmético; a app trata
       // isso como "por preencher" e a pessoa escreve-o de novo se quiser.
       if (updateData?.user?.id) {
@@ -50,7 +52,7 @@ export default function ResetPasswordScreen({ hasSession, onDone, onRequestNewLi
       }
       setDone(true);
     } catch (err) {
-      setError(err?.message || 'Não foi possível atualizar a password. Tenta de novo.');
+      setError(err?.message || t('reset.errGeneric'));
     } finally {
       setLoading(false);
     }
@@ -59,10 +61,10 @@ export default function ResetPasswordScreen({ hasSession, onDone, onRequestNewLi
   if (!hasSession) {
     return (
       <View style={styles.screen}>
-        <Text style={styles.title}>Link inválido ou expirado</Text>
-        <Text style={styles.subtitle}>Este link de recuperação já não é válido — pede um novo na página de login.</Text>
+        <Text style={styles.title}>{t('reset.invalidTitle')}</Text>
+        <Text style={styles.subtitle}>{t('reset.invalidBody')}</Text>
         <TouchableOpacity style={styles.submitBtn} onPress={onRequestNewLink}>
-          <Text style={styles.submitBtnText}>Voltar ao login</Text>
+          <Text style={styles.submitBtnText}>{t('reset.backToLogin')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -71,10 +73,10 @@ export default function ResetPasswordScreen({ hasSession, onDone, onRequestNewLi
   if (done) {
     return (
       <View style={styles.screen}>
-        <Text style={styles.title}>Password atualizada!</Text>
-        <Text style={styles.subtitle}>A tua nova password já está ativa.</Text>
+        <Text style={styles.title}>{t('reset.doneTitle')}</Text>
+        <Text style={styles.subtitle}>{t('reset.doneBody')}</Text>
         <TouchableOpacity style={styles.submitBtn} onPress={onDone}>
-          <Text style={styles.submitBtnText}>Continuar para a TuCAN!</Text>
+          <Text style={styles.submitBtnText}>{t('reset.continueToApp')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -82,10 +84,10 @@ export default function ResetPasswordScreen({ hasSession, onDone, onRequestNewLi
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <Text style={styles.title}>Nova password</Text>
-      <Text style={styles.subtitle}>Define a tua nova password para a TuCAN!.</Text>
+      <Text style={styles.title}>{t('reset.title')}</Text>
+      <Text style={styles.subtitle}>{t('reset.subtitle')}</Text>
 
-      <Text style={styles.label}>Nova password</Text>
+      <Text style={styles.label}>{t('reset.newPasswordLabel')}</Text>
       <TextInput
         style={styles.input}
         value={password}
@@ -95,7 +97,7 @@ export default function ResetPasswordScreen({ hasSession, onDone, onRequestNewLi
         secureTextEntry={!showPassword}
       />
 
-      <Text style={styles.label}>Confirmar password</Text>
+      <Text style={styles.label}>{t('reset.confirmPasswordLabel')}</Text>
       <TextInput
         style={styles.input}
         value={confirm}
@@ -106,13 +108,13 @@ export default function ResetPasswordScreen({ hasSession, onDone, onRequestNewLi
       />
 
       <TouchableOpacity onPress={() => setShowPassword((v) => !v)}>
-        <Text style={styles.showToggle}>{showPassword ? 'Ocultar password' : 'Mostrar password'}</Text>
+        <Text style={styles.showToggle}>{showPassword ? t('reset.hidePassword') : t('reset.showPassword')}</Text>
       </TouchableOpacity>
 
       {!!error && <Text style={styles.error}>{error}</Text>}
 
       <TouchableOpacity style={styles.submitBtn} onPress={submit} disabled={loading}>
-        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnText}>Guardar nova password</Text>}
+        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnText}>{t('reset.save')}</Text>}
       </TouchableOpacity>
     </KeyboardAvoidingView>
   );

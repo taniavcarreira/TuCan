@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { COLORS, FONTS } from '../theme';
 import { useData } from '../context/DataContext';
+import { useLanguage } from '../i18n/LanguageContext';
 import {
   COLOR_OPTIONS, SHAPE_OPTIONS, genId, usedColors, usedShapes,
   firstAvailable,
@@ -12,6 +13,7 @@ const emptyForm = { name: '', type: 'bool', color: COLOR_OPTIONS[0], shape: SHAP
 
 export default function ConfigScreen({ onClose }) {
   const { customFields, persistCustomFields } = useData();
+  const { t } = useLanguage();
   const [formOpen, setFormOpen] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(emptyForm);
@@ -71,31 +73,28 @@ export default function ConfigScreen({ onClose }) {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={{ paddingBottom: 40 }}>
       <View style={styles.headerRow}>
-        <Text style={styles.h1}>Configurações</Text>
+        <Text style={styles.h1}>{t('config.title')}</Text>
         {onClose && (
-          <TouchableOpacity onPress={onClose}><Text style={styles.closeText}>Fechar</Text></TouchableOpacity>
+          <TouchableOpacity onPress={onClose}><Text style={styles.closeText}>{t('common.close')}</Text></TouchableOpacity>
         )}
       </View>
-      <Text style={styles.intro}>
-        Perfect e ProudOfMe mantêm-se sempre. Os restantes campos são teus — até 10, cada um com o tipo,
-        cor e ícone que escolheres.
-      </Text>
+      <Text style={styles.intro}>{t('config.intro')}</Text>
 
       <View style={styles.fixedRow}>
         <View style={styles.fixedChip}>
           <ConfettiIcon size={16} />
-          <Text style={styles.fixedChipText}>ProudOfMe</Text>
+          <Text style={styles.fixedChipText}>{t('common.proudOfMe')}</Text>
           <Text style={styles.lock}>🔒</Text>
         </View>
         <View style={styles.fixedChip}>
           <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: COLORS.c4 }} />
-          <Text style={styles.fixedChipText}>Perfect!</Text>
+          <Text style={styles.fixedChipText}>{t('common.perfect')}</Text>
           <Text style={styles.lock}>🔒</Text>
         </View>
       </View>
 
       <View style={styles.sectionHeaderRow}>
-        <Text style={styles.sectionHeader}>Os teus campos</Text>
+        <Text style={styles.sectionHeader}>{t('config.yourFields')}</Text>
         <Text style={styles.count}>({customFields.length}/10)</Text>
       </View>
 
@@ -106,7 +105,7 @@ export default function ConfigScreen({ onClose }) {
             <View style={{ flex: 1 }}>
               <Text style={styles.fname}>{f.name}</Text>
               <Text style={styles.ftype}>
-                {f.type === 'bool' ? 'Booleano' : `Contagem · ${f.target}${f.metric ? ' ' + f.metric : ''} · passo ${f.step}`}
+                {f.type === 'bool' ? t('config.typeBool') : `${t('config.typeCount')} · ${f.target}${f.metric ? ' ' + f.metric : ''} · ${t('config.stepInline')} ${f.step}`}
               </Text>
             </View>
             <View style={styles.actions}>
@@ -132,50 +131,50 @@ export default function ConfigScreen({ onClose }) {
         disabled={customFields.length >= 10}
         onPress={openNew}
       >
-        <Text style={styles.addBtnText}>+ Novo campo</Text>
+        <Text style={styles.addBtnText}>{t('config.newField')}</Text>
       </TouchableOpacity>
 
       {formOpen && (
         <View style={styles.formCard}>
-          <Text style={styles.formTitle}>{editId === null ? 'Novo campo' : 'Editar campo'}</Text>
+          <Text style={styles.formTitle}>{editId === null ? t('config.newFieldTitle') : t('config.editFieldTitle')}</Text>
 
-          <Text style={styles.label}>Nome</Text>
+          <Text style={styles.label}>{t('config.nameLabel')}</Text>
           <TextInput
             style={styles.input}
             value={form.name}
             onChangeText={(v) => setForm((f) => ({ ...f, name: v }))}
-            placeholder="ex.: Leitura, Meditação, Skincare…"
+            placeholder={t('config.namePlaceholder')}
             placeholderTextColor={COLORS.inkSoft}
           />
 
-          <Text style={styles.label}>Tipo</Text>
+          <Text style={styles.label}>{t('config.typeLabel')}</Text>
           <View style={styles.typeToggle}>
             <TouchableOpacity
               style={[styles.typeBtn, form.type === 'bool' && styles.typeBtnActive]}
               onPress={() => setForm((f) => ({ ...f, type: 'bool' }))}
             >
-              <Text style={[styles.typeBtnText, form.type === 'bool' && styles.typeBtnTextActive]}>Booleano</Text>
+              <Text style={[styles.typeBtnText, form.type === 'bool' && styles.typeBtnTextActive]}>{t('config.typeBool')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.typeBtn, form.type === 'count' && styles.typeBtnActive]}
               onPress={() => setForm((f) => ({ ...f, type: 'count' }))}
             >
-              <Text style={[styles.typeBtnText, form.type === 'count' && styles.typeBtnTextActive]}>Contagem</Text>
+              <Text style={[styles.typeBtnText, form.type === 'count' && styles.typeBtnTextActive]}>{t('config.typeCount')}</Text>
             </TouchableOpacity>
           </View>
 
           {form.type === 'count' && (
             <>
-              <Text style={styles.label}>Valor / meta</Text>
-              <TextInput style={styles.input} value={form.target} onChangeText={(v) => setForm((f) => ({ ...f, target: v }))} keyboardType="decimal-pad" placeholder="ex.: 60" placeholderTextColor={COLORS.inkSoft} />
-              <Text style={styles.label}>Métrica</Text>
-              <TextInput style={styles.input} value={form.metric} onChangeText={(v) => setForm((f) => ({ ...f, metric: v }))} placeholder="ex.: minutos, litros…" placeholderTextColor={COLORS.inkSoft} />
-              <Text style={styles.label}>Incremento a cada − / +</Text>
-              <TextInput style={styles.input} value={form.step} onChangeText={(v) => setForm((f) => ({ ...f, step: v }))} keyboardType="decimal-pad" placeholder="ex.: 15 ou 0,5" placeholderTextColor={COLORS.inkSoft} />
+              <Text style={styles.label}>{t('config.targetLabel')}</Text>
+              <TextInput style={styles.input} value={form.target} onChangeText={(v) => setForm((f) => ({ ...f, target: v }))} keyboardType="decimal-pad" placeholder={t('config.targetPlaceholder')} placeholderTextColor={COLORS.inkSoft} />
+              <Text style={styles.label}>{t('config.metricLabel')}</Text>
+              <TextInput style={styles.input} value={form.metric} onChangeText={(v) => setForm((f) => ({ ...f, metric: v }))} placeholder={t('config.metricPlaceholder')} placeholderTextColor={COLORS.inkSoft} />
+              <Text style={styles.label}>{t('config.stepLabel')}</Text>
+              <TextInput style={styles.input} value={form.step} onChangeText={(v) => setForm((f) => ({ ...f, step: v }))} keyboardType="decimal-pad" placeholder={t('config.stepPlaceholder')} placeholderTextColor={COLORS.inkSoft} />
             </>
           )}
 
-          <Text style={styles.label}>Cor</Text>
+          <Text style={styles.label}>{t('config.colorLabel')}</Text>
           <View style={styles.swatchGrid}>
             {COLOR_OPTIONS.map((c) => {
               const disabled = used.includes(c) && c !== form.color;
@@ -191,9 +190,9 @@ export default function ConfigScreen({ onClose }) {
               );
             })}
           </View>
-          <Text style={styles.hint}>Cada cor só pode ser usada por um campo.</Text>
+          <Text style={styles.hint}>{t('config.colorHint')}</Text>
 
-          <Text style={styles.label}>Ícone</Text>
+          <Text style={styles.label}>{t('config.iconLabel')}</Text>
           <View style={styles.iconGrid}>
             {SHAPE_OPTIONS.map((s) => {
               const disabled = usedS.includes(s) && s !== form.shape;
@@ -209,14 +208,14 @@ export default function ConfigScreen({ onClose }) {
               );
             })}
           </View>
-          <Text style={styles.hint}>Cada ícone só pode ser usado por um campo.</Text>
+          <Text style={styles.hint}>{t('config.iconHint')}</Text>
 
           <View style={styles.formActions}>
             <TouchableOpacity style={styles.cancelBtn} onPress={() => setFormOpen(false)}>
-              <Text style={styles.cancelBtnText}>Cancelar</Text>
+              <Text style={styles.cancelBtnText}>{t('common.cancel')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.saveBtn} onPress={save}>
-              <Text style={styles.saveBtnText}>{editId === null ? 'Guardar campo' : 'Atualizar campo'}</Text>
+              <Text style={styles.saveBtnText}>{editId === null ? t('config.saveField') : t('config.updateField')}</Text>
             </TouchableOpacity>
           </View>
         </View>

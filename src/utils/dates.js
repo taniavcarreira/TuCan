@@ -1,4 +1,32 @@
-export const DAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+// Nomes de dias/meses e formatação de datas, por idioma. As funções
+// aceitam um parâmetro `lang` opcional ('pt' | 'en' | 'fr'); quando
+// omitido mantém o comportamento antigo (português), para não partir
+// chamadas existentes.
+const LOCALE_MAP = { pt: 'pt-PT', en: 'en-US', fr: 'fr-FR' };
+
+export function localeFor(lang) {
+  return LOCALE_MAP[lang] || LOCALE_MAP.pt;
+}
+
+const DAYS_BY_LANG = {
+  pt: ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'],
+  en: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+  fr: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'],
+};
+
+const MONTHS_BY_LANG = {
+  pt: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'],
+  en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+  fr: ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'],
+};
+
+// Mantido por compatibilidade com código que ainda importa a constante
+// diretamente (sempre em português). Preferir DAYS_FOR(language).
+export const DAYS = DAYS_BY_LANG.pt;
+
+export function DAYS_FOR(lang) {
+  return DAYS_BY_LANG[lang] || DAYS_BY_LANG.pt;
+}
 
 export function isoMonday(d) {
   const date = new Date(d);
@@ -13,16 +41,17 @@ export function fmt(d) {
   return d.toISOString().slice(0, 10);
 }
 
-export function fmtShort(d) {
-  return d.toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' });
+export function fmtShort(d, lang) {
+  const locale = LOCALE_MAP[lang] || LOCALE_MAP.pt;
+  return d.toLocaleDateString(locale, { day: '2-digit', month: 'short' });
 }
 
 export function weekKey(monday) {
   return 'week:' + fmt(monday);
 }
 
-export function monthLabelPt(y, m) {
-  const names = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+export function monthLabelPt(y, m, lang) {
+  const names = MONTHS_BY_LANG[lang] || MONTHS_BY_LANG.pt;
   return names[m] + '/' + String(y).slice(2);
 }
 

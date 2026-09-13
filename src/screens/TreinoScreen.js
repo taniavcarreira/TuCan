@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Platfo
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { COLORS, FONTS, NAV_HEIGHT } from '../theme';
 import { useData } from '../context/DataContext';
+import { useLanguage } from '../i18n/LanguageContext';
 import { isoMonday, fmt, fmtShort, monthLabelPt, todayISO } from '../utils/dates';
 
 function toISO(d) {
@@ -12,6 +13,9 @@ function toISO(d) {
   return `${y}-${m}-${day}`;
 }
 
+// Nomes próprios de atividades mantêm-se iguais nos 3 idiomas — só
+// "Outro" é traduzido (via treino.activityOther, tratado à parte no
+// render da chip correspondente).
 const ACTIVITIES = ['RPM', 'BodyPump', 'Hidroginástica', 'Step', 'Elíptica', 'Bicicleta', 'Passadeira', 'Outro'];
 
 function bucketKey(d, period) {
@@ -22,6 +26,7 @@ function bucketKey(d, period) {
 
 export default function TreinoScreen() {
   const { sessions, persistSessions } = useData();
+  const { t, language } = useLanguage();
   const [date, setDate] = useState(todayISO());
   const [type, setType] = useState('RPM');
   const [duration, setDuration] = useState('');
@@ -69,16 +74,16 @@ export default function TreinoScreen() {
     });
     const now = new Date();
     let list = [];
-    let t = 'Atividades por mês';
+    let chartTitle = t('treino.chartTitleMonth');
     if (period === 'week') {
-      t = 'Atividades por semana';
+      chartTitle = t('treino.chartTitleWeek');
       const curMon = isoMonday(now);
       for (let i = 7; i >= 0; i--) {
         const mon = new Date(curMon); mon.setDate(mon.getDate() - i * 7);
-        list.push({ key: fmt(mon), label: fmtShort(mon) });
+        list.push({ key: fmt(mon), label: fmtShort(mon, language) });
       }
     } else if (period === 'year') {
-      t = 'Atividades por ano';
+      chartTitle = t('treino.chartTitleYear');
       for (let i = 4; i >= 0; i--) {
         const y = now.getFullYear() - i;
         list.push({ key: String(y), label: String(y) });
@@ -86,24 +91,24 @@ export default function TreinoScreen() {
     } else {
       for (let i = 5; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        list.push({ key: d.getFullYear() + '-' + d.getMonth(), label: monthLabelPt(d.getFullYear(), d.getMonth()) });
+        list.push({ key: d.getFullYear() + '-' + d.getMonth(), label: monthLabelPt(d.getFullYear(), d.getMonth(), language) });
       }
     }
     const max = Math.max(1, ...list.map((b) => counts[b.key] || 0));
-    return { buckets: list.map((b) => ({ ...b, n: counts[b.key] || 0, h: Math.round(((counts[b.key] || 0) / max) * 100) })), title: t };
-  }, [sessions, period]);
+    return { buckets: list.map((b) => ({ ...b, n: counts[b.key] || 0, h: Math.round(((counts[b.key] || 0) / max) * 100) })), title: chartTitle };
+  }, [sessions, period, t, language]);
 
   const sorted = [...sessions].sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id).slice(0, 30);
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={{ paddingBottom: NAV_HEIGHT + 24 }}>
       <View style={styles.formCard}>
-        <Text style={styles.formTitle}>Registar treino</Text>
+        <Text style={styles.formTitle}>{t('treino.formTitle')}</Text>
 
-        <Text style={styles.label}>Data</Text>
+        <Text style={styles.label}>{t('treino.dateLabel')}</Text>
         <TouchableOpacity style={styles.dateInput} onPress={openDatePicker}>
           <Text style={styles.dateInputText}>
-            {fmtShort(new Date(date + 'T00:00:00'))} <Text style={styles.dateInputSub}>· {date}</Text>
+            {fmtShort(new Date(date + 'T00:00:00'), language)} <Text style={styles.dateInputSub}>· {date}</Text>
           </Text>
         </TouchableOpacity>
         {Platform.OS === 'ios' && iosPickerOpen && (
@@ -116,35 +121,35 @@ export default function TreinoScreen() {
           />
         )}
 
-        <Text style={styles.label}>Atividade</Text>
+        <Text style={styles.label}>{t('treino.activityLabel')}</Text>
         <View style={styles.chipRow}>
           {ACTIVITIES.map((a) => (
             <TouchableOpacity key={a} style={[styles.chip, type === a && styles.chipActive]} onPress={() => setType(a)}>
-              <Text style={[styles.chipText, type === a && styles.chipTextActive]}>{a}</Text>
+              <Text style={[styles.chipText, type === a && styles.chipTextActive]}>{a === 'Outro' ? t('treino.activityOther') : a}</Text>
             </TouchableOpacity>
           ))}
         </View>
 
         <View style={styles.fieldRow}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.label}>Duração (min)</Text>
+            <Text style={styles.label}>{t('treino.durationLabel')}</Text>
             <TextInput style={styles.input} value={duration} onChangeText={setDuration} keyboardType="number-pad" placeholder="45" placeholderTextColor={COLORS.inkSoft} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.label}>Intensidade / nível</Text>
-            <TextInput style={styles.input} value={intensity} onChangeText={setIntensity} placeholder="nível 10, RPE 7" placeholderTextColor={COLORS.inkSoft} />
+            <Text style={styles.label}>{t('treino.intensityLabel')}</Text>
+            <TextInput style={styles.input} value={intensity} onChangeText={setIntensity} placeholder={t('treino.intensityPlaceholder')} placeholderTextColor={COLORS.inkSoft} />
           </View>
         </View>
 
         <TouchableOpacity style={styles.addBtn} onPress={addSession}>
-          <Text style={styles.addBtnText}>Adicionar</Text>
+          <Text style={styles.addBtnText}>{t('treino.addBtn')}</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.chartCard}>
         <Text style={styles.chartTitle}>{title}</Text>
         <View style={styles.periodToggle}>
-          {[['week', 'Semana'], ['month', 'Mês'], ['year', 'Ano']].map(([key, label]) => (
+          {[['week', t('treino.periodWeek')], ['month', t('treino.periodMonth')], ['year', t('treino.periodYear')]].map(([key, label]) => (
             <TouchableOpacity key={key} style={[styles.periodBtn, period === key && styles.periodBtnActive]} onPress={() => setPeriod(key)}>
               <Text style={[styles.periodBtnText, period === key && styles.periodBtnTextActive]}>{label}</Text>
             </TouchableOpacity>
@@ -162,10 +167,10 @@ export default function TreinoScreen() {
       </View>
 
       {sorted.length === 0 ? (
-        <Text style={styles.emptyNote}>Ainda sem treinos registados. Adiciona o de hoje acima.</Text>
+        <Text style={styles.emptyNote}>{t('treino.emptyNote')}</Text>
       ) : sorted.map((s) => {
         const d = new Date(s.date + 'T00:00:00');
-        const meta = [fmtShort(d), s.duration ? s.duration + ' min' : null, s.intensity || null].filter(Boolean).join(' · ');
+        const meta = [fmtShort(d, language), s.duration ? s.duration + ' ' + t('treino.minutesSuffix') : null, s.intensity || null].filter(Boolean).join(' · ');
         return (
           <View key={s.id} style={styles.sessionItem}>
             <View>

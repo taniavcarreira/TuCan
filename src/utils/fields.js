@@ -10,13 +10,20 @@ export const SHAPE_OPTIONS = [
   'star', 'hexagon', 'pentagon', 'arrow', 'ring',
 ];
 
-export const SCORE_TIERS = [
-  'Um passo já é caminho.',
-  'A construir ritmo.',
-  'Estás a ir bem.',
-  'Isto é mesmo bom ritmo.',
-  'Já vale a pena celebrar.',
-];
+// Sugestões mostradas (a picotado, não funcionais) na primeira visita
+// à aba Hoje, antes de o utilizador configurar os seus próprios campos
+// — ver hoje.suggestedTitle/suggestedHint e fields.suggested.* em
+// translations.js. Tocar numa delas navega para Configurações; não são
+// guardadas na BD, servem só de inspiração visual.
+export function suggestedFields(t) {
+  return [
+    { key: 'reading', name: t('fields.suggested.reading'), color: COLORS.c1, shape: 'circle' },
+    { key: 'meditation', name: t('fields.suggested.meditation'), color: COLORS.c2, shape: 'triangle' },
+    { key: 'exercise', name: t('fields.suggested.exercise'), color: COLORS.c3, shape: 'square' },
+    { key: 'water', name: t('fields.suggested.water'), color: COLORS.c5, shape: 'ring' },
+    { key: 'sleep', name: t('fields.suggested.sleep'), color: COLORS.c4, shape: 'diamond' },
+  ];
+}
 
 export function seedFields() {
   return [
@@ -93,13 +100,25 @@ export function currentScore(day, customFields) {
   return score;
 }
 
-export function scoreMessage(score, max) {
-  if (max <= 0) return 'Configura os teus campos para começar.';
-  if (score === 0) return 'Zero também conta.';
-  if (score === max) return 'Sente a vitória!';
+// Escala de energia — 5 emojis (sad → happy), substituindo o antigo
+// campo numérico livre de 1 a 5. `value` continua a ser guardado como
+// 0 (por preencher) a 5; os emojis mapeiam 1→emoji0 ... 5→emoji4.
+export function energiaOptions(t) {
+  return [1, 2, 3, 4, 5].map((value, i) => ({
+    value,
+    emoji: t(`energia.emoji${i}`),
+    label: t(`energia.label${value}`),
+  }));
+}
+
+export function scoreMessage(score, max, t) {
+  if (max <= 0) return t('score.empty');
+  if (score === 0) return t('score.zero');
+  if (score === max) return t('score.complete');
+  const tiers = 5;
   const idx = Math.min(
-    SCORE_TIERS.length - 1,
-    Math.floor(((score - 1) / Math.max(1, max - 1)) * SCORE_TIERS.length)
+    tiers - 1,
+    Math.floor(((score - 1) / Math.max(1, max - 1)) * tiers)
   );
-  return SCORE_TIERS[idx];
+  return t(`score.tier${idx}`);
 }

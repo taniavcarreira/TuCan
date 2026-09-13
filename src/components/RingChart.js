@@ -1,10 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Image, StyleSheet, Animated, Easing } from 'react-native';
-import Svg, { Circle, Path } from 'react-native-svg';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
+import Svg, { Circle } from 'react-native-svg';
 import { COLORS, FONTS } from '../theme';
 import { fieldOk } from '../utils/fields';
-import ToucanAvatar from './ToucanAvatar';
-import Branch from './Branch';
 
 const SIZE = 190;
 const R = 82;
@@ -12,34 +11,28 @@ const CX = 100;
 const CY = 100;
 const C = 2 * Math.PI * R;
 
-// The Perfect!+avatar "hero" composition (toucan + tropical-leaves photo,
-// no visible ring) was designed and validated separately as a mockup at
-// its own scale, then ported here by matching *ratios* to the ring's
-// real rendered diameter rather than by eyeballing pixel sizes:
-//   - the leaves photo behind the toucan was sized to 275/160 of the
-//     ring's diameter in the mockup;
-//   - the toucan itself was sized to 110% of the ring's diameter, so it
-//     gently overflows where the ring used to be drawn.
-// No ring stroke is drawn in this composition any more — the mockup's
-// final, approved state removed it entirely — but its diameter is still
-// the sizing reference these two are derived from.
-const RING_DIAMETER = (SIZE * (2 * R)) / 200;
-const AVATAR_BG_SIZE = RING_DIAMETER * (275 / 160);
-const AVATAR_CHAR_SIZE = RING_DIAMETER * 1.1;
+// Composição "Perfect!" (item 7 do focus group, 11/09/2026): a Tania
+// enviou um GIF (tucano animado sobre um círculo verde-água, já com o
+// padrão de folhas embutido) para substituir a antiga composição
+// toucan-leaves-bg.png + ToucanAvatar a "voar" para o poleiro. Convertido
+// para WebP animado (perfect-toucan.webp, sem perdas, alfa preservado —
+// ver assets/images/) para animar de forma fiável em iOS/Android/Web via
+// expo-image (o <Image> nativo do RN só mostra o 1º frame de GIF/WebP
+// animados no iOS). O ficheiro já traz o próprio fundo circular, por isso
+// ocupa aqui o mesmo espaço que o anel ocupava, sem stroke por baixo.
+const PERFECT_IMAGE_SIZE = SIZE;
 
-export default function RingChart({ day, customFields, score, max, perfect, avatar, perfectTrigger }) {
-  // Entrance animation: the avatar flies in from off-screen (small,
-  // faint, offset up and to the side) and swoops down onto the branch,
-  // with a little spring bounce on arrival; once it has settled, it
-  // winks (see ToucanAvatar's `blinkTrigger`). Starts already "arrived"
-  // (opacity/scale = 1, no offset) so simply being on a Perfect! day
-  // never replays the flourish — only an actual tap on Perfect! (a
-  // fresh `perfectTrigger`) does.
+export default function RingChart({ day, customFields, score, max, perfect, perfectTrigger }) {
+  // Entrada animada: a imagem "voa" a partir de fora do ecrã (pequena,
+  // semi-transparente, deslocada) e assenta no lugar com um pequeno
+  // efeito de mola. Começa já "pousada" (opacidade/escala = 1, sem
+  // deslocamento) para que estar num dia Perfect! não repita a animação
+  // sozinho — só um toque real em Perfect! (um `perfectTrigger` novo) o
+  // faz.
   const flyScale = useRef(new Animated.Value(1)).current;
   const flyOpacity = useRef(new Animated.Value(1)).current;
   const flyTX = useRef(new Animated.Value(0)).current;
   const flyTY = useRef(new Animated.Value(0)).current;
-  const [blinkTrigger, setBlinkTrigger] = useState(0);
 
   useEffect(() => {
     if (!perfectTrigger) return;
@@ -56,64 +49,26 @@ export default function RingChart({ day, customFields, score, max, perfect, avat
         Animated.timing(flyScale, { toValue: 1.08, duration: 460, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
       ]),
       Animated.spring(flyScale, { toValue: 1, friction: 4.5, tension: 100, useNativeDriver: true }),
-    ]).start(() => setBlinkTrigger(Date.now()));
+    ]).start();
   }, [perfectTrigger]);
 
   if (perfect) {
-    // A chosen avatar (Conta > Avatar) takes over the ring on a Perfect!
-    // day instead of the default drawn smiley — flying in to land on a
-    // branch, with a tropical-leaves photo behind it (sized off the
-    // ring's own diameter, see AVATAR_BG_SIZE/AVATAR_CHAR_SIZE above) and
-    // no ring stroke drawn on top. Elsewhere ToucanAvatar keeps its plain
-    // "no background" look (e.g. the profile avatar picker).
-    if (avatar) {
-      return (
-        <View style={styles.wrap}>
-          <Image
-            source={require('../../assets/images/toucan-leaves-bg.png')}
-            style={{
-              position: 'absolute',
-              width: AVATAR_BG_SIZE,
-              height: AVATAR_BG_SIZE,
-            }}
-            resizeMode="stretch"
-          />
-          <View style={styles.center} pointerEvents="none">
-            <Animated.View
-              style={{
-                opacity: flyOpacity,
-                transform: [{ translateX: flyTX }, { translateY: flyTY }, { scale: flyScale }],
-              }}
-            >
-              <ToucanAvatar
-                hat={avatar.hat} top={avatar.top} base={avatar.base} leg={avatar.leg}
-                size={AVATAR_CHAR_SIZE} blinkTrigger={blinkTrigger}
-              />
-            </Animated.View>
-            <View style={styles.branchWrap}>
-              <Branch width={132} />
-            </View>
-          </View>
-        </View>
-      );
-    }
+    // Ver nota no topo do ficheiro — item 7 do focus group (11/09/2026).
     return (
       <View style={styles.wrap}>
-        <Svg width={SIZE} height={SIZE} viewBox="0 0 200 200">
-          <Circle cx={CX} cy={CY} r={R} fill={COLORS.c4} />
-          <Circle cx="70" cy="80" r="10" fill={COLORS.bg} />
-          <Circle cx="130" cy="80" r="10" fill={COLORS.bg} />
-          <Path
-            d="M58 112 Q100 158 142 112"
-            stroke={COLORS.bg}
-            strokeWidth="11"
-            strokeLinecap="round"
-            fill="none"
+        <Animated.View
+          style={{
+            opacity: flyOpacity,
+            transform: [{ translateX: flyTX }, { translateY: flyTY }, { scale: flyScale }],
+          }}
+        >
+          <ExpoImage
+            source={require('../../assets/images/perfect-toucan.webp')}
+            style={{ width: PERFECT_IMAGE_SIZE, height: PERFECT_IMAGE_SIZE }}
+            contentFit="contain"
+            autoplay
           />
-        </Svg>
-        <View style={styles.center} pointerEvents="none">
-          <Text style={styles.n}>PERFECT</Text>
-        </View>
+        </Animated.View>
       </View>
     );
   }
@@ -171,5 +126,4 @@ const styles = StyleSheet.create({
   center: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
   n: { fontFamily: FONTS.display, fontSize: 38, color: COLORS.ink },
   l: { fontSize: 11, color: COLORS.inkSoft, fontWeight: '700', textTransform: 'uppercase', marginTop: 2, letterSpacing: 0.5 },
-  branchWrap: { marginTop: -14 },
 });

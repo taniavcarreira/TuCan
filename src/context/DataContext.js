@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { isoMonday, fmt } from '../utils/dates';
-import { blankDay, migrateDay, seedFields } from '../utils/fields';
+import { blankDay, migrateDay } from '../utils/fields';
 import { getCachedKey, getOrCreateDeviceKey, encryptProfileField, decryptProfileField } from '../utils/profileCrypto';
 
 const DataContext = createContext(null);
@@ -27,6 +27,16 @@ export function DataProvider({ user, children }) {
   }
 
   // ---------- custom fields ----------
+  // NOTA (fix de 11/09/2026, item 1 + item 6 do focus group): esta
+  // função costumava inserir 5 campos-modelo na BD sempre que
+  // encontrava zero campos para o utilizador — não só no primeiríssimo
+  // signup, mas em QUALQUER login em que a pessoa tivesse a lista
+  // vazia (incluindo depois de os apagar todos de propósito). Isso
+  // fazia os campos "ressuscitarem" sozinhos. Agora nunca escreve nada
+  // na BD aqui — só reflete o que lá está. A distinção entre "conta
+  // nova, nunca configurada" e "utilizador deliberadamente sem campos"
+  // passa a viver em `fieldsInitialized` (ver abaixo), gravado apenas
+  // quando a pessoa mexe mesmo pela primeira vez na lista.
   const loadCustomFields = useCallback(async () => {
     const { data, error } = await supabase
       .from('fields')
@@ -34,19 +44,18 @@ export function DataProvider({ user, children }) {
       .eq('user_id', userId)
       .order('sort_order', { ascending: true });
     if (error) { console.error('loadCustomFields', error); return; }
-    if (data && data.length) {
-      setCustomFieldsState(data.map((r) => ({
-        id: r.id, name: r.name, type: r.type, color: r.color, shape: r.shape,
-        target: r.target, metric: r.metric, step: r.step,
-      })));
-    } else {
-      const seed = seedFields();
-      const rows = seed.map((f, i) => ({ ...f, user_id: userId, sort_order: i }));
-      const { error: insErr } = await supabase.from('fields').insert(rows);
-      if (insErr) console.error('seed fields insert', insErr);
-      setCustomFieldsState(seed);
-    }
+    setCustomFieldsState((data || []).map((r) => ({
+      id: r.id, name: r.name, type: r.type, color: r.color, shape: r.shape,
+      target: r.target, metric: r.metric, step: r.step,
+    })));
   }, [userId]);
+
+  // true assim que a pessoa gravou a lista de campos pela primeira vez
+  // (mesmo que a tenha deixado vazia de propósito) — usado por
+  // HojeScreen para decidir entre mostrar as 5 sugestões a picotado
+  // (primeira visita) ou o estado vazio normal (utilizador que apagou
+  // tudo conscientemente).
+  const fieldsInitialized = !!user.user_metadata?.fields_initialized;
 
   const persistCustomFields = useCallback(async (nextFields) => {
     const prevIds = customFields.map((f) => f.id);
@@ -54,6 +63,11 @@ export function DataProvider({ user, children }) {
     const removed = prevIds.filter((id) => !nextIds.includes(id));
 
     setCustomFieldsState(nextFields); // optimistic update
+
+    if (!fieldsInitialized) {
+      supabase.auth.updateUser({ data: { fields_initialized: true } })
+        .catch((e) => console.error('fields_initialized flag', e));
+    }
 
     if (removed.length) {
       const { error } = await supabase.from('fields').delete().in('id', removed);
@@ -65,7 +79,7 @@ export function DataProvider({ user, children }) {
     }));
     const { error } = await supabase.from('fields').upsert(rows, { onConflict: 'id' });
     if (error) console.error('upsert fields', error);
-  }, [customFields, userId]);
+  }, [customFields, userId, fieldsInitialized]);
 
   // ---------- day data ----------
   function rowToDay(row) {
@@ -147,13 +161,16 @@ export function DataProvider({ user, children }) {
   // updateUser() below fires a USER_UPDATED event, so `profile` just
   // derives straight from the `user` prop instead of duplicating state.
   //
-  // Nome/apelido are end-to-end encrypted (see src/utils/profileCrypto.js)
-  // — stored as `first_name_enc`/`last_name_enc` ciphertext, decrypted
-  // here using a key that only ever lives on this device (derived from
-  // the account's password at login, or a random per-device key for
-  // Google accounts). Older accounts may still carry the pre-encryption
-  // plain `first_name`/`last_name` fields — those are intentionally
-  // ignored from here on (never read, never written again).
+  // Username is end-to-end encrypted (see src/utils/profileCrypto.js) —
+  // stored as `username_enc` ciphertext, decrypted here using a key
+  // that only ever lives on this device (derived from the account's
+  // password at login, or a random per-device key for Google
+  // accounts). Older accounts may still carry the pre-username
+  // `first_name_enc`/`last_name_enc` (or even older, pre-encryption
+  // plain `first_name`/`last_name`) fields from before the 11/09/2026
+  // focus-group change (item 3: nome+apelido → username único) — those
+  // are intentionally ignored from here on (never read, never written
+  // again).
   const [profileKey, setProfileKey] = useState(null);
 
   useEffect(() => {
@@ -168,24 +185,17 @@ export function DataProvider({ user, children }) {
 
   const profile = useMemo(() => ({
     email: user.email || '',
-    firstName: decryptProfileField(user.user_metadata?.first_name_enc, profileKey),
-    lastName: decryptProfileField(user.user_metadata?.last_name_enc, profileKey),
+    username: decryptProfileField(user.user_metadata?.username_enc, profileKey),
     avatarId: user.user_metadata?.avatar_id || null,
   }), [user, profileKey]);
 
   const updateProfile = useCallback(async (fields) => {
-    const { first_name, last_name, ...rest } = fields;
+    const { username, ...rest } = fields;
     const payload = { ...rest };
-    if (first_name !== undefined || last_name !== undefined) {
+    if (username !== undefined) {
       const key = profileKey || await getOrCreateDeviceKey(userId);
-      if (first_name !== undefined) {
-        payload.first_name_enc = encryptProfileField(first_name, key);
-        payload.first_name = null; // limpa qualquer resto em texto simples de contas antigas
-      }
-      if (last_name !== undefined) {
-        payload.last_name_enc = encryptProfileField(last_name, key);
-        payload.last_name = null;
-      }
+      payload.username_enc = encryptProfileField(username, key);
+      payload.username = null; // limpa qualquer resto em texto simples
     }
     const { error } = await supabase.auth.updateUser({ data: payload });
     if (error) throw error;
@@ -259,14 +269,14 @@ export function DataProvider({ user, children }) {
   const value = useMemo(() => ({
     ready,
     todayMonday, todayIndex,
-    customFields, persistCustomFields, loadCustomFields,
+    customFields, persistCustomFields, loadCustomFields, fieldsInitialized,
     currentMonday, weekData, goToWeek, saveWeek, loadSemana,
     todayWeek, saveToday, loadToday,
     sessions, persistSessions, loadSessions,
     profile, updateProfile, loadTrendDays,
   }), [
     ready, customFields, currentMonday, weekData, todayWeek, sessions,
-    persistCustomFields, loadCustomFields, goToWeek, saveWeek, loadSemana,
+    persistCustomFields, loadCustomFields, fieldsInitialized, goToWeek, saveWeek, loadSemana,
     saveToday, loadToday, persistSessions, loadSessions, todayMonday,
     profile, updateProfile, loadTrendDays,
   ]);

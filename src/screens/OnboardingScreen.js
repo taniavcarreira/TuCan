@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Animated } from 'react-native';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { COLORS, FONTS } from '../theme';
+import { useLanguage } from '../i18n/LanguageContext';
 import ToucanAvatar from '../components/ToucanAvatar';
 import { DEFAULT_AVATAR } from '../utils/avatars';
 
@@ -94,94 +95,97 @@ function LockChip({ symbol, symbolColor, label }) {
 }
 
 function PitchSlide() {
+  const { t } = useLanguage();
   return (
     <View style={styles.pitchWrap}>
       <View style={styles.badge}>
         <ToucanAvatar hat="none" top={DEFAULT_AVATAR.top} base={DEFAULT_AVATAR.base} leg={DEFAULT_AVATAR.leg} size={78} />
       </View>
       <Text style={styles.pitchTitle}>TuCAN<Text style={{ color: COLORS.mostarda }}>!</Text></Text>
-      <Text style={styles.pitchSlogan}>Yes. Tu podes.</Text>
+      <Text style={styles.pitchSlogan}>{t('onboarding.pitch.slogan')}</Text>
       <Text style={styles.pitchBody}>
-        Mais do que uma app de hábitos com gráficos bonitos, a TuCAN é o bater de asas que te faz voltar diariamente — mesmo depois da segunda semana.
-        {'\n\n'}
-        É a pergunta simples que te fazes todos os dias:{' '}
-        <Text style={styles.pitchBodyStrong}>hoje, cumpri o que prometi a mim própria?</Text>{' '}
-        Sem culpa quando um dia corre mal. Sem sermões. Só o teu progresso, campo a campo — e um tucano genuinamente convencido a aplaudir-te quando acertas em cheio.
+        {t('onboarding.pitch.body1')}
+        <Text style={styles.pitchBodyStrong}>{t('onboarding.pitch.bodyBold')}</Text>
+        {t('onboarding.pitch.body2')}
       </Text>
       <View style={styles.tagsRow}>
-        <Tag label="Hábitos diários" />
-        <Tag label="Sem streaks a castigar" />
-        <Tag label="Um tucano orgulhoso" />
+        <Tag label={t('onboarding.pitch.tag1')} />
+        <Tag label={t('onboarding.pitch.tag2')} />
+        <Tag label={t('onboarding.pitch.tag3')} />
       </View>
     </View>
   );
 }
 
 function HojeSlide() {
+  const { t } = useLanguage();
   return (
     <View>
-      <Eyebrow label="ABA 1 DE 3" />
-      <Text style={styles.h2}>Hoje</Text>
-      <Text style={styles.lede}>O check-in do dia. Abres, marcas o que fizeste, fechas. <Text style={styles.ledeStrong}>30 segundos, no máximo.</Text></Text>
+      <Eyebrow label={t('onboarding.tab1')} />
+      <Text style={styles.h2}>{t('onboarding.hoje.title')}</Text>
+      <Text style={styles.lede}>{t('onboarding.hoje.lede1')}<Text style={styles.ledeStrong}>{t('onboarding.hoje.ledeStrong')}</Text></Text>
       <View style={styles.featureList}>
-        <FeatureItem bg={COLORS.agua} icon="sun" iconColor={COLORS.bg} title="ProudOfMe" sub="Marca sempre que fizeres algo só por ti — vale 75% do dia." />
-        <FeatureItem bg={COLORS.mostarda} icon="star" iconColor={COLORS.bg} title="Perfect!" sub="Quando o dia correu redondinho — os outros 25%, e o confeti dispara." />
-        <FeatureItem bg={COLORS.c5} icon="check" iconColor={COLORS.ink} title="Até 10 campos teus" sub='Sim/não simples, ou contagens com meta própria — "60 min", "2 litros".' />
-        <FeatureItem bg={COLORS.c9} icon="bolt" iconColor={COLORS.ink} title="Energia, de 1 a 5" sub="Um número livre. Sem certo, sem errado — só um registo honesto." />
+        <FeatureItem bg={COLORS.agua} icon="sun" iconColor={COLORS.bg} title={t('onboarding.hoje.f1title')} sub={t('onboarding.hoje.f1sub')} />
+        <FeatureItem bg={COLORS.mostarda} icon="star" iconColor={COLORS.bg} title={t('onboarding.hoje.f2title')} sub={t('onboarding.hoje.f2sub')} />
+        <FeatureItem bg={COLORS.c5} icon="check" iconColor={COLORS.ink} title={t('onboarding.hoje.f3title')} sub={t('onboarding.hoje.f3sub')} />
+        <FeatureItem bg={COLORS.c9} icon="bolt" iconColor={COLORS.ink} title={t('onboarding.hoje.f4title')} sub={t('onboarding.hoje.f4sub')} />
       </View>
-      <Text style={styles.footnote}>Chegaste a 100%? Confetis, som, e o tucano voa até ao ramo e pisca-te o olho. A sério.</Text>
+      <Text style={styles.footnote}>{t('onboarding.hoje.footnote')}</Text>
     </View>
   );
 }
 
 function SemanaSlide() {
+  const { t } = useLanguage();
   return (
     <View>
-      <Eyebrow label="ABA 2 DE 3" />
-      <Text style={styles.h2}>Semana</Text>
-      <Text style={styles.lede}>A vista de longe. <Text style={styles.ledeStrong}>Um padrão vale mais do que um dia perfeito isolado.</Text></Text>
+      <Eyebrow label={t('onboarding.tab2')} />
+      <Text style={styles.h2}>{t('onboarding.semana.title')}</Text>
+      <Text style={styles.lede}>{t('onboarding.semana.lede1')}<Text style={styles.ledeStrong}>{t('onboarding.semana.ledeStrong')}</Text></Text>
       <View style={styles.featureList}>
-        <FeatureItem bg={COLORS.card} border icon="grid" iconColor={COLORS.ink} title="Grelha de 7 dias" sub="Todos os campos, todos os dias, num relance só." />
-        <FeatureItem bg={COLORS.electro} icon="wave" iconColor={COLORS.bg} title="Corrige em atraso" sub="Esqueceste-te de marcar ontem? Toca no dia e resolve." />
-        <FeatureItem bg={COLORS.c5} icon="trend" iconColor={COLORS.ink} title="Onda semanal + resumo" sub="Tendência automática: ProudOfMe, energia média, totais por campo." />
-        <FeatureItem bg={COLORS.agua} icon="chartAxis" iconColor={COLORS.bg} title="Tendência mensal & anual" sub="Um acordeão para quando quiseres olhar mais longe." />
+        <FeatureItem bg={COLORS.card} border icon="grid" iconColor={COLORS.ink} title={t('onboarding.semana.f1title')} sub={t('onboarding.semana.f1sub')} />
+        <FeatureItem bg={COLORS.electro} icon="wave" iconColor={COLORS.bg} title={t('onboarding.semana.f2title')} sub={t('onboarding.semana.f2sub')} />
+        <FeatureItem bg={COLORS.c5} icon="trend" iconColor={COLORS.ink} title={t('onboarding.semana.f3title')} sub={t('onboarding.semana.f3sub')} />
+        <FeatureItem bg={COLORS.agua} icon="chartAxis" iconColor={COLORS.bg} title={t('onboarding.semana.f4title')} sub={t('onboarding.semana.f4sub')} />
       </View>
-      <Text style={styles.footnote}>Uma semana mais fraca não apaga as outras — o padrão ao longo dos meses é que conta.</Text>
+      <Text style={styles.footnote}>{t('onboarding.semana.footnote')}</Text>
     </View>
   );
 }
 
 function TreinoSlide() {
+  const { t } = useLanguage();
   return (
     <View>
-      <Eyebrow label="ABA 3 DE 3" />
-      <Text style={styles.h2}>Treino</Text>
-      <Text style={styles.lede}>Fora dos campos diários — o registo de tudo o que suaste.</Text>
+      <Eyebrow label={t('onboarding.tab3')} />
+      <Text style={styles.h2}>{t('onboarding.treino.title')}</Text>
+      <Text style={styles.lede}>{t('onboarding.treino.lede')}</Text>
       <View style={styles.featureList}>
-        <FeatureItem bg={COLORS.sporting} icon="calendar" iconColor={COLORS.ink} title="Data, atividade, duração, intensidade" sub='RPM, BodyPump, Hidroginástica, Step, Elíptica, Bicicleta, Passadeira, ou "Outro".' />
-        <FeatureItem bg={COLORS.c9} icon="bars" iconColor={COLORS.ink} title="Gráfico por semana, mês ou ano" sub="A tua constância, em barras, sem teres de somar nada." />
-        <FeatureItem bg={COLORS.card} border icon="list" iconColor={COLORS.ink} title="Histórico dos últimos 30" sub="Revê ou apaga qualquer sessão registada." />
+        <FeatureItem bg={COLORS.sporting} icon="calendar" iconColor={COLORS.ink} title={t('onboarding.treino.f1title')} sub={t('onboarding.treino.f1sub')} />
+        <FeatureItem bg={COLORS.c9} icon="bars" iconColor={COLORS.ink} title={t('onboarding.treino.f2title')} sub={t('onboarding.treino.f2sub')} />
+        <FeatureItem bg={COLORS.card} border icon="list" iconColor={COLORS.ink} title={t('onboarding.treino.f3title')} sub={t('onboarding.treino.f3sub')} />
       </View>
-      <Text style={styles.footnote}>Fora da grelha dos hábitos de propósito — o exercício tem o seu próprio ritmo.</Text>
+      <Text style={styles.footnote}>{t('onboarding.treino.footnote')}</Text>
     </View>
   );
 }
 
 function ConfigSlide() {
+  const { t } = useLanguage();
   return (
     <View>
-      <Eyebrow label="A ESPINHA DORSAL" />
-      <Text style={styles.h2}>Configurações</Text>
-      <Text style={styles.lede}>Aqui é onde a TuCAN! deixa de ser genérica e passa a ser <Text style={styles.ledeStrong}>tua</Text>.</Text>
+      <Eyebrow label={t('onboarding.backbone')} />
+      <Text style={styles.h2}>{t('onboarding.config.title')}</Text>
+      <Text style={styles.lede}>{t('onboarding.config.lede1')}<Text style={styles.ledeStrong}>{t('onboarding.config.ledeStrong')}</Text>{t('onboarding.config.lede2')}</Text>
       <View style={styles.lockRow}>
-        <LockChip symbol="★" symbolColor={COLORS.mostarda} label="Perfect!" />
-        <LockChip symbol="✨" symbolColor={COLORS.agua} label="ProudOfMe" />
+        <LockChip symbol="★" symbolColor={COLORS.mostarda} label={t('common.perfect')} />
+        <LockChip symbol="✨" symbolColor={COLORS.agua} label={t('common.proudOfMe')} />
       </View>
       <View style={styles.featureList}>
-        <FeatureItem bg={COLORS.card} border icon="gridSmall" iconColor={COLORS.ink} title="Até 10 campos próprios" sub="Estes dois ficam sempre — o resto constróis tu." />
-        <FeatureItem bg={COLORS.electro} icon="lines" iconColor={COLORS.bg} title="Nome, tipo, cor e ícone" sub='Sim/não, ou contagem com meta e unidade (ex.: "min", "litros").' />
-        <FeatureItem bg={COLORS.c9} icon="sparkle" iconColor={COLORS.ink} title="Cor e ícone únicos por campo" sub="Cada um só pode pertencer a um campo — para nunca te confundires a ler." />
-        <FeatureItem bg={COLORS.c5} icon="reorder" iconColor={COLORS.ink} title="Reordena, edita, apaga" sub="Quando quiseres. A app segue-te a ti, não o contrário." />
+        <FeatureItem bg={COLORS.card} border icon="gridSmall" iconColor={COLORS.ink} title={t('onboarding.config.f1title')} sub={t('onboarding.config.f1sub')} />
+        <FeatureItem bg={COLORS.electro} icon="lines" iconColor={COLORS.bg} title={t('onboarding.config.f2title')} sub={t('onboarding.config.f2sub')} />
+        <FeatureItem bg={COLORS.c9} icon="sparkle" iconColor={COLORS.ink} title={t('onboarding.config.f3title')} sub={t('onboarding.config.f3sub')} />
+        <FeatureItem bg={COLORS.c5} icon="reorder" iconColor={COLORS.ink} title={t('onboarding.config.f4title')} sub={t('onboarding.config.f4sub')} />
       </View>
     </View>
   );
@@ -194,6 +198,7 @@ const SLIDES = [PitchSlide, HojeSlide, SemanaSlide, TreinoSlide, ConfigSlide];
 // there is deliberately no "don't show again" flag, so it reappears
 // after every sign-out too (explicit product decision, 31/08/2026).
 export default function OnboardingScreen({ onDone }) {
+  const { t } = useLanguage();
   const [i, setI] = useState(0);
   const fade = useRef(new Animated.Value(1)).current;
   const isLast = i === TOTAL - 1;
@@ -213,8 +218,8 @@ export default function OnboardingScreen({ onDone }) {
     <View style={styles.screen}>
       <View style={styles.topbar}>
         <View style={styles.topRow}>
-          <Text style={styles.brand}>TuCAN!</Text>
-          <Text style={styles.stepLabel}>PASSO {i + 1}/{TOTAL}</Text>
+          <Text style={styles.brand}>{t('common.appName')}</Text>
+          <Text style={styles.stepLabel}>{t('onboarding.stepOf', { i: i + 1, total: TOTAL })}</Text>
         </View>
         <View style={styles.dots}>
           {Array.from({ length: TOTAL }).map((_, di) => (
@@ -232,11 +237,11 @@ export default function OnboardingScreen({ onDone }) {
       <View style={styles.navbar}>
         {!isLast ? (
           <TouchableOpacity onPress={onDone} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Text style={styles.skipText}>Saltar</Text>
+            <Text style={styles.skipText}>{t('onboarding.skip')}</Text>
           </TouchableOpacity>
         ) : <View style={{ width: 1 }} />}
         <TouchableOpacity style={[styles.nextBtn, isLast && styles.nextBtnFinal]} onPress={next}>
-          <Text style={[styles.nextText, isLast && styles.nextTextFinal]}>{isLast ? 'Entrar' : 'Avançar'}</Text>
+          <Text style={[styles.nextText, isLast && styles.nextTextFinal]}>{isLast ? t('onboarding.enter') : t('onboarding.next')}</Text>
           <Text style={[styles.nextArrow, isLast && styles.nextTextFinal]}>{isLast ? '↵' : '→'}</Text>
         </TouchableOpacity>
       </View>

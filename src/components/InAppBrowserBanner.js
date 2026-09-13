@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { COLORS, FONTS } from '../theme';
+import { useLanguage } from '../i18n/LanguageContext';
 
 // Google actively refuses to complete OAuth inside embedded ("in-app")
 // browsers — WhatsApp, Instagram, Facebook, TikTok, etc. all open links
@@ -35,6 +36,7 @@ function detectInAppBrowser() {
 }
 
 export default function InAppBrowserBanner() {
+  const { t } = useLanguage();
   const [dismissed, setDismissed] = useState(false);
   const [copied, setCopied] = useState(false);
   // useMemo (not useState/useEffect) is enough — the user agent never
@@ -67,21 +69,18 @@ export default function InAppBrowserBanner() {
   return (
     <View style={styles.banner}>
       <View style={styles.textCol}>
-        <Text style={styles.title}>Estás a abrir isto dentro do {info.name}</Text>
+        <Text style={styles.title}>{t('inapp.title', { name: info.name })}</Text>
         <Text style={styles.body}>
-          O login com Google não funciona aqui dentro (e o resto da app também pode falhar sem aviso).{' '}
-          {info.isAndroid
-            ? 'Toca em "Abrir no Chrome" para continuares sem problemas.'
-            : 'Toca em ⋯ ou no ícone de partilha, no canto do ecrã, e escolhe "Abrir no Safari" — ou copia o link e cola lá diretamente.'}
+          {info.isAndroid ? t('inapp.bodyAndroid') : t('inapp.bodyIOS')}
         </Text>
         <View style={styles.actions}>
           {info.isAndroid && (
             <TouchableOpacity style={styles.btnPrimary} onPress={openInChrome}>
-              <Text style={styles.btnPrimaryText}>Abrir no Chrome</Text>
+              <Text style={styles.btnPrimaryText}>{t('inapp.openChrome')}</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity style={styles.btnGhost} onPress={copyLink}>
-            <Text style={styles.btnGhostText}>{copied ? 'Link copiado!' : 'Copiar link'}</Text>
+            <Text style={styles.btnGhostText}>{copied ? t('inapp.linkCopied') : t('inapp.copyLink')}</Text>
           </TouchableOpacity>
         </View>
       </View>

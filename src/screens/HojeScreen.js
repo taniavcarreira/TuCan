@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, TextInput, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { COLORS, FONTS, textColorFor, NAV_HEIGHT } from '../theme';
 import { useData } from '../context/DataContext';
-import { currentScore, maxScore, scoreMessage, fieldOk, fieldValue, decimalsOf } from '../utils/fields';
+import { useLanguage } from '../i18n/LanguageContext';
+import { currentScore, maxScore, scoreMessage, fieldOk, fieldValue, decimalsOf, suggestedFields, energiaOptions } from '../utils/fields';
+import { localeFor } from '../utils/dates';
 import RingChart from '../components/RingChart';
 import Shape, { ConfettiIcon } from '../components/Shape';
 import ElectricLine from '../components/ElectricLine';
-import { DEFAULT_AVATAR } from '../utils/avatars';
 
-export default function HojeScreen({ onCelebrate }) {
-  const { todayWeek, todayIndex, saveToday, customFields } = useData();
+export default function HojeScreen({ onCelebrate, onOpenConfig }) {
+  const { todayWeek, todayIndex, saveToday, customFields, fieldsInitialized } = useData();
+  const { t, language } = useLanguage();
   const [lineTrigger, setLineTrigger] = useState(0);
   const [perfectTrigger, setPerfectTrigger] = useState(0);
   const day = todayWeek.days[todayIndex];
@@ -18,7 +20,12 @@ export default function HojeScreen({ onCelebrate }) {
 
   const score = currentScore(day, customFields);
   const max = maxScore(customFields);
-  const msg = scoreMessage(score, max);
+  const msg = scoreMessage(score, max, t);
+  // Item 8 (focus group, 11/09/2026): Perfect! só fica disponível
+  // quando TODOS os outros campos estão no objetivo definido — os
+  // booleanos marcados, os de contagem no target — E o ProudOfMe
+  // também está marcado. `isWin` já capta exactamente isso, porque
+  // currentScore/maxScore contam o ProudOfMe como +1 no total.
   const isWin = max > 0 && score === max;
 
   async function updateDay(mutator) {
@@ -34,7 +41,12 @@ export default function HojeScreen({ onCelebrate }) {
     if (max > 0 && newScore === max) onCelebrate?.();
   }
 
-  const toggleFixed = (key) => updateDay((d) => { d[key] = !d[key]; });
+  const toggleFixed = (key) => {
+    // Só bloqueia a ATIVAÇÃO do Perfect! sem os requisitos cumpridos —
+    // desmarcar continua sempre livre.
+    if (key === 'perfect' && !day.perfect && !isWin) return;
+    updateDay((d) => { d[key] = !d[key]; });
+  };
   const toggleBool = (fieldId) => updateDay((d) => { d.custom[fieldId] = !d.custom[fieldId]; });
   const bump = (field, delta) => updateDay((d) => {
     const cur = d.custom[field.id] || 0;
@@ -43,15 +55,17 @@ export default function HojeScreen({ onCelebrate }) {
   });
   const setMood = (val) => updateDay((d) => { d.mood = val; });
 
+  const perfectDisabled = !day.perfect && !isWin;
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={{ paddingBottom: NAV_HEIGHT + 24 }}>
       <View style={styles.ringCard}>
         <Text style={styles.dateLabel}>
-          {new Date().toLocaleDateString('pt-PT', { weekday: 'long', day: '2-digit', month: 'long' })}
+          {new Date().toLocaleDateString(localeFor(language), { weekday: 'long', day: '2-digit', month: 'long' })}
         </Text>
         <RingChart
           day={day} customFields={customFields} score={score} max={max}
-          perfect={day.perfect} avatar={DEFAULT_AVATAR} perfectTrigger={perfectTrigger}
+          perfect={day.perfect} perfectTrigger={perfectTrigger}
         />
         <View style={styles.scoreWrap}>
           <ElectricLine width={200} trigger={lineTrigger} />
@@ -69,79 +83,103 @@ export default function HojeScreen({ onCelebrate }) {
           onPress={() => toggleFixed('therapy')}
         >
           <ConfettiIcon size={18} />
-          <Text style={[styles.quickBtnText, day.therapy && { color: COLORS.bg }]}>ProudOfMe</Text>
+          <Text style={[styles.quickBtnText, day.therapy && { color: COLORS.bg }]}>{t('common.proudOfMe')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.quickBtn, { flex: 1, justifyContent: 'center' }, day.perfect && { backgroundColor: COLORS.c4 }]}
+          style={[
+            styles.quickBtn, { flex: 1, justifyContent: 'center' },
+            day.perfect && { backgroundColor: COLORS.c4 },
+            perfectDisabled && styles.quickBtnDisabled,
+          ]}
           onPress={() => toggleFixed('perfect')}
+          disabled={perfectDisabled}
         >
-          <Text style={[styles.quickBtnText, day.perfect && { color: COLORS.bg }]}>Perfect!</Text>
+          <Text style={[styles.quickBtnText, day.perfect && { color: COLORS.bg }, perfectDisabled && styles.quickBtnTextDisabled]}>{t('common.perfect')}</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Dynamic custom fields, 50% width each */}
-      <View style={styles.grid}>
-        {customFields.length === 0 && (
-          <Text style={styles.emptyNote}>
-            Ainda sem campos configurados. Vai a Configurações para adicionar os teus.
-          </Text>
-        )}
-        {customFields.map((f) => {
-          if (f.type === 'bool') {
-            const on = !!fieldValue(day, f);
-            return (
-              <TouchableOpacity
-                key={f.id}
-                style={[styles.tile, on && { backgroundColor: f.color, borderColor: 'transparent' }]}
-                onPress={() => toggleBool(f.id)}
-              >
-                <Shape shape={f.shape} color={on ? textColorFor(f.color) : f.color} size={18} />
-                <Text style={[styles.tileText, on && { color: textColorFor(f.color) }]}>{f.name}</Text>
+      {/* Item 1 (focus group, 11/09/2026): na primeira visita de sempre
+          (fieldsInitialized ainda false), mostra 5 sugestões a picotado
+          em vez da grelha vazia — tocar em qualquer uma leva a
+          Configurações. Assim que a pessoa mexe na lista de campos
+          (mesmo para a deixar vazia de propósito), fieldsInitialized
+          passa a true para sempre e este ecrã mostra o estado real. */}
+      {!fieldsInitialized ? (
+        <View style={styles.suggestedWrap}>
+          <Text style={styles.suggestedTitle}>{t('hoje.suggestedTitle')}</Text>
+          <Text style={styles.suggestedHint}>{t('hoje.suggestedHint')}</Text>
+          <View style={styles.grid}>
+            {suggestedFields(t).map((f) => (
+              <TouchableOpacity key={f.key} style={styles.suggestedTile} onPress={() => onOpenConfig && onOpenConfig()}>
+                <Shape shape={f.shape} color={f.color} size={18} />
+                <Text style={[styles.tileText, { color: COLORS.inkSoft }]}>{f.name}</Text>
               </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      ) : (
+        <View style={styles.grid}>
+          {customFields.length === 0 && (
+            <Text style={styles.emptyNote}>{t('hoje.emptyNote')}</Text>
+          )}
+          {customFields.map((f) => {
+            if (f.type === 'bool') {
+              const on = !!fieldValue(day, f);
+              return (
+                <TouchableOpacity
+                  key={f.id}
+                  style={[styles.tile, on && { backgroundColor: f.color, borderColor: 'transparent' }]}
+                  onPress={() => toggleBool(f.id)}
+                >
+                  <Shape shape={f.shape} color={on ? textColorFor(f.color) : f.color} size={18} />
+                  <Text style={[styles.tileText, on && { color: textColorFor(f.color) }]}>{f.name}</Text>
+                </TouchableOpacity>
+              );
+            }
+            const val = fieldValue(day, f);
+            return (
+              <View key={f.id} style={styles.countTile}>
+                <View style={styles.countLabelRow}>
+                  <Shape shape={f.shape} color={f.color} size={16} />
+                  <Text style={styles.tileText}>{f.name}</Text>
+                </View>
+                <View style={styles.countControls}>
+                  <TouchableOpacity style={[styles.wbtn, { backgroundColor: f.color }]} onPress={() => bump(f, -f.step)}>
+                    <Text style={styles.wbtnText}>−</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.countNum}>{val}/{f.target}{f.metric ? ' ' + f.metric : ''}</Text>
+                  <TouchableOpacity style={[styles.wbtn, { backgroundColor: f.color }]} onPress={() => bump(f, f.step)}>
+                    <Text style={styles.wbtnText}>+</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             );
-          }
-          const val = fieldValue(day, f);
-          return (
-            <View key={f.id} style={styles.countTile}>
-              <View style={styles.countLabelRow}>
-                <Shape shape={f.shape} color={f.color} size={16} />
-                <Text style={styles.tileText}>{f.name}</Text>
-              </View>
-              <View style={styles.countControls}>
-                <TouchableOpacity style={[styles.wbtn, { backgroundColor: f.color }]} onPress={() => bump(f, -f.step)}>
-                  <Text style={styles.wbtnText}>−</Text>
-                </TouchableOpacity>
-                <Text style={styles.countNum}>{val}/{f.target}{f.metric ? ' ' + f.metric : ''}</Text>
-                <TouchableOpacity style={[styles.wbtn, { backgroundColor: f.color }]} onPress={() => bump(f, f.step)}>
-                  <Text style={styles.wbtnText}>+</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          );
-        })}
-      </View>
+          })}
+        </View>
+      )}
 
-      {/* Energia — kept as its own fixed 1-5 scale, separate from the
-          configurable field system (see README for why). */}
+      {/* Energia — item 9 do focus group: escala de 5 emojis (sad →
+          happy) em vez do número livre de 1 a 5. */}
       <View style={styles.moodCard}>
         <View style={styles.moodLeft}>
           <Shape shape="plus" color={COLORS.electro} size={14} />
-          <Text style={styles.tileText}>Energia</Text>
+          <Text style={styles.tileText}>{t('common.energia')}</Text>
         </View>
-        <TextInput
-          style={styles.moodInput}
-          keyboardType="number-pad"
-          maxLength={1}
-          value={day.mood ? String(day.mood) : ''}
-          placeholder="–"
-          placeholderTextColor={COLORS.inkSoft}
-          onChangeText={(t) => {
-            let v = parseInt(t, 10);
-            if (isNaN(v)) v = 0;
-            v = Math.max(0, Math.min(5, v));
-            setMood(v);
-          }}
-        />
+        <View style={styles.moodOptions}>
+          {energiaOptions(t).map((opt) => {
+            const active = day.mood === opt.value;
+            return (
+              <TouchableOpacity
+                key={opt.value}
+                style={[styles.moodOpt, active && styles.moodOptActive]}
+                onPress={() => setMood(active ? 0 : opt.value)}
+                accessibilityLabel={opt.label}
+              >
+                <Text style={styles.moodEmoji}>{opt.emoji}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
     </ScrollView>
   );
@@ -158,6 +196,13 @@ const styles = StyleSheet.create({
   proudRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
   quickBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 15, paddingHorizontal: 14, borderRadius: 8, backgroundColor: COLORS.card, borderWidth: 2, borderColor: COLORS.line },
   quickBtnText: { fontFamily: FONTS.bodyBold, fontSize: 14, color: COLORS.ink },
+  quickBtnDisabled: { opacity: 0.4 },
+  quickBtnTextDisabled: { color: COLORS.inkSoft },
+
+  suggestedWrap: { marginBottom: 14 },
+  suggestedTitle: { fontFamily: FONTS.bodyBold, fontSize: 12.5, color: COLORS.ink, marginBottom: 3 },
+  suggestedHint: { fontSize: 11.5, color: COLORS.inkSoft, marginBottom: 10, lineHeight: 16 },
+  suggestedTile: { width: '48%', flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 15, paddingHorizontal: 14, borderRadius: 8, backgroundColor: 'transparent', borderWidth: 2, borderColor: COLORS.line, borderStyle: 'dashed' },
 
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14 },
   emptyNote: { color: COLORS.inkSoft, fontSize: 13, textAlign: 'center', width: '100%', paddingVertical: 18 },
@@ -171,7 +216,10 @@ const styles = StyleSheet.create({
   wbtnText: { color: '#fff', fontFamily: FONTS.display, fontSize: 17 },
   countNum: { fontFamily: FONTS.mono, fontSize: 12.5, color: COLORS.ink },
 
-  moodCard: { backgroundColor: COLORS.card, borderWidth: 2, borderColor: COLORS.line, borderRadius: 8, padding: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+  moodCard: { backgroundColor: COLORS.card, borderWidth: 2, borderColor: COLORS.line, borderRadius: 8, padding: 15, gap: 12, marginBottom: 14 },
   moodLeft: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  moodInput: { width: 52, height: 38, borderRadius: 10, borderWidth: 1.5, borderColor: COLORS.line, backgroundColor: COLORS.bg, textAlign: 'center', fontFamily: FONTS.mono, fontSize: 16, color: COLORS.ink },
+  moodOptions: { flexDirection: 'row', justifyContent: 'space-between' },
+  moodOpt: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: COLORS.line, backgroundColor: COLORS.bg },
+  moodOptActive: { borderColor: COLORS.electro, borderWidth: 2, backgroundColor: '#22262b' },
+  moodEmoji: { fontSize: 19 },
 });

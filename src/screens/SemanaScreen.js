@@ -1,19 +1,23 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, TextInput, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { COLORS, FONTS, textColorFor, NAV_HEIGHT } from '../theme';
 import { useData } from '../context/DataContext';
-import { fieldOk, fieldValue, decimalsOf } from '../utils/fields';
-import { DAYS, isoMonday, fmtShort } from '../utils/dates';
+import { useLanguage } from '../i18n/LanguageContext';
+import { fieldOk, fieldValue, decimalsOf, energiaOptions } from '../utils/fields';
+import { DAYS_FOR, isoMonday, fmtShort } from '../utils/dates';
 import Shape, { ConfettiIcon } from '../components/Shape';
 import WeeklyWaveChart from '../components/WeeklyWaveChart';
 import TrendAccordion from '../components/TrendAccordion';
 
 export default function SemanaScreen() {
   const { currentMonday, weekData, goToWeek, saveWeek, customFields, loadTrendDays } = useData();
+  const { t, language } = useLanguage();
+  const days = DAYS_FOR(language);
+  const energiaOpts = energiaOptions(t);
 
   const end = new Date(currentMonday);
   end.setDate(end.getDate() + 6);
-  const rangeLabel = `${fmtShort(currentMonday)} – ${fmtShort(end)}`;
+  const rangeLabel = `${fmtShort(currentMonday, language)} – ${fmtShort(end, language)}`;
 
   async function mutateDay(i, mutator) {
     const next = { ...weekData, days: { ...weekData.days } };
@@ -30,7 +34,12 @@ export default function SemanaScreen() {
     d.custom[field.id] = cur >= field.target ? 0 : parseFloat((cur + field.step).toFixed(dec));
   });
   const toggleTherapy = (i) => mutateDay(i, (d) => { d.therapy = !d.therapy; });
-  const setMood = (i, val) => mutateDay(i, (d) => { d.mood = val; });
+  // Item 9 (focus group, 11/09/2026): a célula compacta de "Energia" na
+  // grelha semanal não tem espaço para 5 botões de emoji lado a lado,
+  // por isso mantém-se a interação de tocar-para-avançar já usada nos
+  // campos de contagem desta mesma grelha (cycleCount acima) — cada
+  // toque avança um nível (0=por preencher → 1..5), e do 5 volta ao 0.
+  const cycleMood = (i) => mutateDay(i, (d) => { d.mood = (d.mood || 0) >= 5 ? 0 : (d.mood || 0) + 1; });
 
   // weekly summary
   let proud = 0, moodSum = 0, moodCount = 0;
@@ -66,7 +75,7 @@ export default function SemanaScreen() {
         {/* header row */}
         <View style={styles.gridRow}>
           <View style={styles.rowLabelSlot} />
-          {DAYS.map((label, i) => {
+          {days.map((label, i) => {
             const d = new Date(currentMonday); d.setDate(d.getDate() + i);
             return (
               <View key={i} style={styles.dayCell}>
@@ -117,7 +126,7 @@ export default function SemanaScreen() {
         <View style={[styles.gridRow, styles.gridRowBorder]}>
           <View style={styles.rowLabelSlot}>
             <ConfettiIcon size={12} />
-            <Text style={styles.rowLabelText} numberOfLines={1}>ProudOfMe</Text>
+            <Text style={styles.rowLabelText} numberOfLines={1}>{t('common.proudOfMe')}</Text>
           </View>
           {Array.from({ length: 7 }).map((_, i) => {
             const day = weekData.days[i];
@@ -139,43 +148,37 @@ export default function SemanaScreen() {
         {/* Energia row */}
         <View style={styles.gridRow}>
           <View style={styles.rowLabelSlot}>
-            <Text style={styles.rowLabelText}>Energia</Text>
+            <Text style={styles.rowLabelText}>{t('common.energia')}</Text>
           </View>
           {Array.from({ length: 7 }).map((_, i) => {
             const day = weekData.days[i];
             if (!day) return <View key={i} style={styles.dayCell} />;
+            const opt = day.mood ? energiaOpts.find((o) => o.value === day.mood) : null;
             return (
               <View key={i} style={styles.dayCell}>
-                <TextInput
-                  style={[styles.moodMini, day.mood && { borderColor: COLORS.electro, color: COLORS.electro }]}
-                  keyboardType="number-pad"
-                  maxLength={1}
-                  value={day.mood ? String(day.mood) : ''}
-                  placeholder="–"
-                  placeholderTextColor={COLORS.inkSoft}
-                  onChangeText={(t) => {
-                    let v = parseInt(t, 10);
-                    if (isNaN(v)) v = 0;
-                    v = Math.max(0, Math.min(5, v));
-                    setMood(i, v);
-                  }}
-                />
+                <TouchableOpacity
+                  style={[styles.moodMini, day.mood && styles.moodMiniActive]}
+                  onPress={() => cycleMood(i)}
+                  accessibilityLabel={opt ? opt.label : undefined}
+                >
+                  <Text style={styles.moodMiniText}>{opt ? opt.emoji : '–'}</Text>
+                </TouchableOpacity>
               </View>
             );
           })}
         </View>
       </View>
 
-      <Text style={styles.legend}>Energia: número livre de 1 a 5, sem certo ou errado</Text>
+      <Text style={styles.legend}>{t('semana.legend')}</Text>
 
       <View style={styles.waveCard}>
-        <Text style={styles.waveTitle}>Tendência da semana</Text>
+        <Text style={styles.waveTitle}>{t('semana.trendTitle')}</Text>
         <WeeklyWaveChart weekData={weekData} customFields={customFields} />
       </View>
 
       <View style={styles.summary}>
-        <View style={styles.stat}><Text style={styles.statN}>{proud}/7</Text><Text style={styles.statL}>ProudOfMe</Text></View>
-        <View style={styles.stat}><Text style={styles.statN}>{moodAvg}</Text><Text style={styles.statL}>Energia média (1–5)</Text></View>
+        <View style={styles.stat}><Text style={styles.statN}>{proud}/7</Text><Text style={styles.statL}>{t('common.proudOfMe')}</Text></View>
+        <View style={styles.stat}><Text style={styles.statN}>{moodAvg}</Text><Text style={styles.statL}>{t('semana.energiaMedia')}</Text></View>
         {customFields.slice(0, 4).map((f, fi) => (
           <View key={f.id} style={styles.stat}>
             <Text style={styles.statN}>{fieldCounts[fi]}/7</Text>
@@ -187,7 +190,7 @@ export default function SemanaScreen() {
       <TrendAccordion loadTrendDays={loadTrendDays} customFields={customFields} />
 
       <Text style={styles.footerNote}>
-        Uma semana mais fraca não apaga as outras. O padrão ao longo de meses é o que conta.
+        {t('semana.footerNote')}
       </Text>
     </ScrollView>
   );
@@ -214,7 +217,9 @@ const styles = StyleSheet.create({
   countCellText: { fontFamily: FONTS.mono, fontSize: 11, color: COLORS.ink },
   countCellSub: { fontFamily: FONTS.mono, fontSize: 8, color: COLORS.inkSoft },
 
-  moodMini: { width: 28, height: 26, borderRadius: 6, borderWidth: 2, borderColor: COLORS.line, backgroundColor: COLORS.bg, textAlign: 'center', fontFamily: FONTS.mono, fontSize: 11, color: COLORS.ink },
+  moodMini: { width: 28, height: 26, borderRadius: 6, borderWidth: 2, borderColor: COLORS.line, backgroundColor: COLORS.bg, alignItems: 'center', justifyContent: 'center' },
+  moodMiniActive: { borderColor: COLORS.electro },
+  moodMiniText: { fontSize: 13, textAlign: 'center' },
 
   legend: { fontSize: 11.5, color: COLORS.inkSoft, textAlign: 'center', marginBottom: 16 },
 

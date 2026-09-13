@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
 import Svg, { Path } from 'react-native-svg';
 import { COLORS, FONTS } from '../theme';
 import { supabase } from '../supabaseClient';
+import { useLanguage } from '../i18n/LanguageContext';
 import { signInWithGoogle } from '../utils/googleAuth';
 import { checkEmailStatus } from '../utils/authChecks';
 import BrandMarkIcon from '../components/BrandMarkIcon';
@@ -40,6 +41,7 @@ function Notice({ notice }) {
 }
 
 export default function AuthScreen() {
+  const { t } = useLanguage();
   const [mode, setMode] = useState('signin'); // 'signin' | 'signup' | 'recover'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -72,7 +74,7 @@ export default function AuthScreen() {
   async function submitSignIn() {
     setNotice(null);
     if (!email.trim() || !password) {
-      setNotice({ kind: 'error', text: 'Preenche o email e a password.' });
+      setNotice({ kind: 'error', text: t('auth.errFillFields') });
       return;
     }
     setLoading(true);
@@ -86,16 +88,16 @@ export default function AuthScreen() {
       try { status = await checkEmailStatus(email); } catch (_) { /* cai no fallback abaixo */ }
 
       if (status === 'not_registered') {
-        setNotice({ kind: 'error', text: 'Utilizador não registado.', action: { label: 'Cria a tua conta', onPress: switchToSignup } });
+        setNotice({ kind: 'error', text: t('auth.errNotRegistered'), action: { label: t('auth.actionCreateAccount'), onPress: switchToSignup } });
         return;
       }
 
       const { data: signInData, error: err } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (err) {
-        setNotice({ kind: 'error', text: 'Password incorreta.', action: { label: 'Reinicia a password', onPress: switchToRecover } });
+        setNotice({ kind: 'error', text: t('auth.errWrongPassword'), action: { label: t('auth.actionResetPassword'), onPress: switchToRecover } });
         return;
       }
-      // A chave de encriptação do nome/apelido deriva da password — nunca
+      // A chave de encriptação do username deriva da password — nunca
       // é enviada à Supabase, só fica guardada neste dispositivo (ver
       // src/utils/profileCrypto.js). Feito aqui, enquanto ainda temos a
       // password em memória (o próprio campo do formulário).
@@ -110,7 +112,7 @@ export default function AuthScreen() {
       // WhatsApp/Instagram — em vez de uma simples password errada) ficava
       // completamente silencioso: o botão parecia não fazer nada. Agora
       // mostra-se sempre alguma coisa, mesmo que genérica.
-      setNotice({ kind: 'error', text: err?.message || 'Algo correu mal ao tentar entrar. Tenta noutro browser (ex.: abre o link no Safari/Chrome em vez de dentro do WhatsApp) e tenta de novo.' });
+      setNotice({ kind: 'error', text: err?.message || t('auth.errGenericSignin') });
     } finally {
       setLoading(false);
     }
@@ -119,7 +121,7 @@ export default function AuthScreen() {
   async function submitSignUp() {
     setNotice(null);
     if (!email.trim() || !password) {
-      setNotice({ kind: 'error', text: 'Preenche o email e a password.' });
+      setNotice({ kind: 'error', text: t('auth.errFillFields') });
       return;
     }
     setLoading(true);
@@ -133,9 +135,9 @@ export default function AuthScreen() {
         const key = deriveKeyFromPassword(password, signUpData.user.id);
         await cacheKey(signUpData.user.id, key);
       }
-      setNotice({ kind: 'info', text: 'Conta criada. Consoante as definições do teu projeto Supabase, pode ser preciso confirmar por email antes de entrares.' });
+      setNotice({ kind: 'info', text: t('auth.infoAccountCreated') });
     } catch (err) {
-      setNotice({ kind: 'error', text: err?.message || 'Algo correu mal ao criar a conta. Tenta de novo.' });
+      setNotice({ kind: 'error', text: err?.message || t('auth.errGenericSignup') });
     } finally {
       setLoading(false);
     }
@@ -144,7 +146,7 @@ export default function AuthScreen() {
   async function submitRecover() {
     setNotice(null);
     if (!email.trim()) {
-      setNotice({ kind: 'error', text: 'Escreve o teu email.' });
+      setNotice({ kind: 'error', text: t('auth.errFillEmail') });
       return;
     }
     setLoading(true);
@@ -153,11 +155,11 @@ export default function AuthScreen() {
       try { status = await checkEmailStatus(email); } catch (_) { /* cai no fallback abaixo */ }
 
       if (status === 'not_registered') {
-        setNotice({ kind: 'error', text: 'Email não reconhecido.', action: { label: 'Regista-te', onPress: switchToSignup } });
+        setNotice({ kind: 'error', text: t('auth.errEmailNotRecognized'), action: { label: t('auth.actionSignup'), onPress: switchToSignup } });
         return;
       }
       if (status === 'google') {
-        setNotice({ kind: 'info', text: 'Registaste-te pelo Google.', action: { label: 'Continuar com o Google', onPress: submitGoogle } });
+        setNotice({ kind: 'info', text: t('auth.infoRegisteredWithGoogle'), action: { label: t('auth.actionContinueGoogle'), onPress: submitGoogle } });
         return;
       }
 
@@ -172,9 +174,9 @@ export default function AuthScreen() {
         setNotice({ kind: 'error', text: err.message });
         return;
       }
-      setNotice({ kind: 'info', text: 'Verifica o teu email — enviámos um link para definires uma nova password.' });
+      setNotice({ kind: 'info', text: t('auth.infoCheckEmail') });
     } catch (err) {
-      setNotice({ kind: 'error', text: err?.message || 'Algo correu mal. Tenta de novo.' });
+      setNotice({ kind: 'error', text: err?.message || t('auth.errGeneric') });
     } finally {
       setLoading(false);
     }
@@ -186,7 +188,7 @@ export default function AuthScreen() {
     try {
       await signInWithGoogle();
     } catch (err) {
-      setNotice({ kind: 'error', text: err?.message || 'Não foi possível continuar com o Google.' });
+      setNotice({ kind: 'error', text: err?.message || t('auth.errGoogleFailed') });
     } finally {
       setGoogleLoading(false);
     }
@@ -203,20 +205,20 @@ export default function AuthScreen() {
       <View style={styles.brandMarkWrap}>
         <BrandMarkIcon size={40} bg={COLORS.bg} rotate={-90} />
       </View>
-      <Text style={styles.title}>TuCAN!</Text>
+      <Text style={styles.title}>{t('common.appName')}</Text>
       <Text style={styles.subtitle}>
-        {mode === 'signin' ? 'Entra na tua conta' : mode === 'signup' ? 'Cria a tua conta' : 'Recuperar password'}
+        {mode === 'signin' ? t('auth.titleSignin') : mode === 'signup' ? t('auth.titleSignup') : t('auth.titleRecover')}
       </Text>
       {mode === 'recover' && (
-        <Text style={styles.recoverLede}>Escreve o teu email e enviamos-te um link para definires uma nova password.</Text>
+        <Text style={styles.recoverLede}>{t('auth.recoverLede')}</Text>
       )}
 
-      <Text style={styles.label}>Email</Text>
+      <Text style={styles.label}>{t('auth.emailLabel')}</Text>
       <TextInput
         style={styles.input}
         value={email}
         onChangeText={setEmail}
-        placeholder="tu@email.com"
+        placeholder={t('auth.emailPlaceholder')}
         placeholderTextColor={COLORS.inkSoft}
         autoCapitalize="none"
         keyboardType="email-address"
@@ -224,7 +226,7 @@ export default function AuthScreen() {
 
       {mode !== 'recover' && (
         <>
-          <Text style={styles.label}>Password</Text>
+          <Text style={styles.label}>{t('auth.passwordLabel')}</Text>
           <TextInput
             style={styles.input}
             value={password}
@@ -241,26 +243,26 @@ export default function AuthScreen() {
       <TouchableOpacity style={styles.submitBtn} onPress={submit} disabled={loading}>
         {loading ? <ActivityIndicator color="#fff" /> : (
           <Text style={styles.submitBtnText}>
-            {mode === 'signin' ? 'Entrar' : mode === 'signup' ? 'Criar conta' : 'Enviar link de recuperação'}
+            {mode === 'signin' ? t('auth.submitSignin') : mode === 'signup' ? t('auth.submitSignup') : t('auth.submitRecover')}
           </Text>
         )}
       </TouchableOpacity>
 
       {mode === 'signin' && (
         <TouchableOpacity onPress={switchToRecover}>
-          <Text style={styles.forgotText}>Esqueci-me da password</Text>
+          <Text style={styles.forgotText}>{t('auth.forgotPassword')}</Text>
         </TouchableOpacity>
       )}
 
       {mode !== 'recover' ? (
         <TouchableOpacity onPress={() => (mode === 'signin' ? switchToSignup() : switchToSignin())}>
           <Text style={styles.switchText}>
-            {mode === 'signin' ? 'Ainda não tens conta? Criar uma' : 'Já tens conta? Entrar'}
+            {mode === 'signin' ? t('auth.switchToSignup') : t('auth.switchToSignin')}
           </Text>
         </TouchableOpacity>
       ) : (
         <TouchableOpacity onPress={switchToSignin}>
-          <Text style={styles.switchText}>Voltar ao login</Text>
+          <Text style={styles.switchText}>{t('auth.backToSignin')}</Text>
         </TouchableOpacity>
       )}
 
@@ -268,7 +270,7 @@ export default function AuthScreen() {
         <>
           <View style={styles.dividerRow}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>ou</Text>
+            <Text style={styles.dividerText}>{t('auth.or')}</Text>
             <View style={styles.dividerLine} />
           </View>
 
@@ -276,7 +278,7 @@ export default function AuthScreen() {
             {googleLoading ? <ActivityIndicator color={COLORS.ink} /> : (
               <View style={styles.googleBtnContent}>
                 <GoogleIcon />
-                <Text style={styles.googleBtnText}>Continuar com o Google</Text>
+                <Text style={styles.googleBtnText}>{t('auth.googleBtn')}</Text>
               </View>
             )}
           </TouchableOpacity>

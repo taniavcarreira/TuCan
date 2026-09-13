@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { COLORS, FONTS, NAV_HEIGHT } from '../theme';
+import { useLanguage } from '../i18n/LanguageContext';
 
 function HojeIcon({ color }) {
   return (
@@ -27,13 +28,15 @@ function TreinoIcon({ color }) {
   );
 }
 
-const TABS = [
-  { key: 'hoje', label: 'Hoje', Icon: HojeIcon },
-  { key: 'semana', label: 'Semana', Icon: SemanaIcon },
-  { key: 'treino', label: 'Treino', Icon: TreinoIcon },
+const TAB_KEYS = [
+  { key: 'hoje', tKey: 'nav.hoje', Icon: HojeIcon },
+  { key: 'semana', tKey: 'nav.semana', Icon: SemanaIcon },
+  { key: 'treino', tKey: 'nav.treino', Icon: TreinoIcon },
 ];
 
 export default function BottomNav({ active, onChange }) {
+  const { t } = useLanguage();
+  const TABS = TAB_KEYS.map((tab) => ({ ...tab, label: t(tab.tKey) }));
   return (
     <View style={styles.nav}>
       {TABS.map(({ key, label, Icon }) => {

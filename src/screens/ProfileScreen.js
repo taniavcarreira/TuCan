@@ -2,29 +2,37 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { COLORS, FONTS } from '../theme';
 import { useData } from '../context/DataContext';
+import { useLanguage } from '../i18n/LanguageContext';
 import { supabase } from '../supabaseClient';
 import { DEFAULT_AVATAR } from '../utils/avatars';
 import ToucanAvatar from '../components/ToucanAvatar';
+import ConfirmModal from '../components/ConfirmModal';
+
+// Nomes nativos de cada idioma suportado — mostram-se sempre assim
+// (endónimos), independentemente do idioma atual da interface, tal
+// como o nome "TuCAN!" nunca é traduzido.
+const LANGUAGE_NAMES = { pt: 'Português', en: 'English', fr: 'Français' };
 
 export default function ProfileScreen({ onClose }) {
   const { profile, updateProfile } = useData();
-  const [firstName, setFirstName] = useState(profile.firstName);
-  const [lastName, setLastName] = useState(profile.lastName);
+  const { t, language, setLanguage, SUPPORTED_LANGUAGES } = useLanguage();
+  const [username, setUsername] = useState(profile.username);
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
 
-  const dirty = firstName !== profile.firstName || lastName !== profile.lastName;
+  const dirty = username !== profile.username;
 
   async function save() {
     setError(''); setMessage('');
     setSaving(true);
     try {
-      await updateProfile({ first_name: firstName.trim(), last_name: lastName.trim() });
-      setMessage('Perfil atualizado.');
+      await updateProfile({ username: username.trim() });
+      setMessage(t('profile.updated'));
     } catch (e) {
-      setError(e.message || 'Não foi possível guardar. Tenta de novo.');
+      setError(e.message || t('profile.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -36,7 +44,7 @@ export default function ProfileScreen({ onClose }) {
     try {
       const { error: err } = await supabase.auth.resetPasswordForEmail(profile.email);
       if (err) setError(err.message);
-      else setMessage('Enviámos um email para ' + profile.email + ' com instruções para repor a password.');
+      else setMessage(t('profile.resetEmailSent', { email: profile.email }));
     } finally {
       setResetting(false);
     }
@@ -45,9 +53,9 @@ export default function ProfileScreen({ onClose }) {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={{ paddingBottom: 40 }}>
       <View style={styles.headerRow}>
-        <Text style={styles.h1}>A minha conta</Text>
+        <Text style={styles.h1}>{t('profile.title')}</Text>
         {onClose && (
-          <TouchableOpacity onPress={onClose}><Text style={styles.closeText}>Fechar</Text></TouchableOpacity>
+          <TouchableOpacity onPress={onClose}><Text style={styles.closeText}>{t('common.close')}</Text></TouchableOpacity>
         )}
       </View>
 
@@ -55,33 +63,36 @@ export default function ProfileScreen({ onClose }) {
         <ToucanAvatar hat={DEFAULT_AVATAR.hat} top={DEFAULT_AVATAR.top} base={DEFAULT_AVATAR.base} leg={DEFAULT_AVATAR.leg} size={72} />
       </View>
 
-      <Text style={styles.label}>Email</Text>
+      <Text style={styles.label}>{t('profile.emailLabel')}</Text>
       <View style={styles.readOnlyField}>
         <Text style={styles.readOnlyText}>{profile.email}</Text>
       </View>
 
-      <Text style={styles.label}>Nome</Text>
+      <Text style={styles.label}>{t('profile.usernameLabel')}</Text>
       <TextInput
         style={styles.input}
-        value={firstName}
-        onChangeText={setFirstName}
-        placeholder="O teu nome"
+        value={username}
+        onChangeText={setUsername}
+        placeholder={t('profile.usernamePlaceholder')}
         placeholderTextColor={COLORS.inkSoft}
+        autoCapitalize="none"
       />
 
-      <Text style={styles.label}>Apelido</Text>
-      <TextInput
-        style={styles.input}
-        value={lastName}
-        onChangeText={setLastName}
-        placeholder="O teu apelido"
-        placeholderTextColor={COLORS.inkSoft}
-      />
+      <Text style={styles.label}>{t('profile.avatarLabel')}</Text>
+      <Text style={styles.hint}>{t('profile.avatarHint')}</Text>
 
-      <Text style={styles.label}>Avatar</Text>
-      <Text style={styles.hint}>
-        O teu tucano aparece a voar até ao ramo e pisca o olho sempre que atingires o Perfect! do dia.
-      </Text>
+      <Text style={styles.label}>{t('profile.languageLabel')}</Text>
+      <View style={styles.langRow}>
+        {SUPPORTED_LANGUAGES.map((lng) => (
+          <TouchableOpacity
+            key={lng}
+            style={[styles.langBtn, language === lng && styles.langBtnActive]}
+            onPress={() => setLanguage(lng)}
+          >
+            <Text style={[styles.langBtnText, language === lng && styles.langBtnTextActive]}>{LANGUAGE_NAMES[lng]}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
       {!!error && <Text style={styles.error}>{error}</Text>}
       {!!message && <Text style={styles.info}>{message}</Text>}
@@ -91,16 +102,26 @@ export default function ProfileScreen({ onClose }) {
         disabled={!dirty || saving}
         onPress={save}
       >
-        {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Guardar alterações</Text>}
+        {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>{t('profile.saveChanges')}</Text>}
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.resetBtn} disabled={resetting} onPress={resetPassword}>
-        {resetting ? <ActivityIndicator color={COLORS.ink} /> : <Text style={styles.resetBtnText}>Reset Password</Text>}
+        {resetting ? <ActivityIndicator color={COLORS.ink} /> : <Text style={styles.resetBtnText}>{t('profile.resetPassword')}</Text>}
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.signOutBtn} onPress={() => supabase.auth.signOut()}>
-        <Text style={styles.signOutBtnText}>Terminar sessão</Text>
+      <TouchableOpacity style={styles.signOutBtn} onPress={() => setSignOutConfirmOpen(true)}>
+        <Text style={styles.signOutBtnText}>{t('profile.signOut')}</Text>
       </TouchableOpacity>
+
+      <ConfirmModal
+        visible={signOutConfirmOpen}
+        title={t('signOut.confirmTitle')}
+        confirmLabel={t('signOut.confirmBtn')}
+        cancelLabel={t('signOut.cancelBtn')}
+        danger
+        onCancel={() => setSignOutConfirmOpen(false)}
+        onConfirm={() => { setSignOutConfirmOpen(false); supabase.auth.signOut(); }}
+      />
     </ScrollView>
   );
 }
@@ -119,6 +140,12 @@ const styles = StyleSheet.create({
   readOnlyText: { color: COLORS.inkSoft, fontFamily: FONTS.bodyRegular, fontSize: 15 },
 
   hint: { fontSize: 11.5, color: COLORS.inkSoft, lineHeight: 16, marginBottom: 10 },
+
+  langRow: { flexDirection: 'row', gap: 8 },
+  langBtn: { flex: 1, paddingVertical: 11, alignItems: 'center', borderRadius: 8, borderWidth: 2, borderColor: COLORS.line, backgroundColor: COLORS.bg },
+  langBtnActive: { backgroundColor: COLORS.electro, borderColor: COLORS.electro },
+  langBtnText: { color: COLORS.inkSoft, fontFamily: FONTS.bodyBold, fontSize: 12.5 },
+  langBtnTextActive: { color: COLORS.bg },
 
   error: { color: COLORS.c9, fontSize: 12.5, marginTop: 16, textAlign: 'center' },
   info: { color: COLORS.electro, fontSize: 12.5, marginTop: 16, textAlign: 'center', lineHeight: 18 },

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, SafeAreaView, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { setAudioModeAsync } from 'expo-audio';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { useFonts, Archivo_400Regular, Archivo_600SemiBold, Archivo_700Bold, Archivo_800ExtraBold } from '@expo-google-fonts/archivo';
 import { ArchivoBlack_400Regular } from '@expo-google-fonts/archivo-black';
@@ -10,9 +11,11 @@ import { IBMPlexMono_400Regular, IBMPlexMono_600SemiBold } from '@expo-google-fo
 import { COLORS, FONTS } from './src/theme';
 import { supabase } from './src/supabaseClient';
 import { DataProvider, useData } from './src/context/DataContext';
+import { LanguageProvider, useLanguage } from './src/i18n/LanguageContext';
 import AuthScreen from './src/screens/AuthScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import ResetPasswordScreen from './src/screens/ResetPasswordScreen';
+import PermissionsScreen from './src/screens/PermissionsScreen';
 import HojeScreen from './src/screens/HojeScreen';
 import SemanaScreen from './src/screens/SemanaScreen';
 import TreinoScreen from './src/screens/TreinoScreen';
@@ -22,6 +25,13 @@ import BottomNav from './src/components/BottomNav';
 import Confetti from './src/components/Confetti';
 import InAppBrowserBanner from './src/components/InAppBrowserBanner';
 import BrandMarkIcon from './src/components/BrandMarkIcon';
+import ConfirmModal from './src/components/ConfirmModal';
+
+// Chave AsyncStorage (por utilizador) que marca se a pessoa já viu o
+// ecrã informativo de privacidade/permissões pós-login (item 4 do
+// focus group, 11/09/2026). Local ao dispositivo, não sincroniza entre
+// aparelhos — decisão deliberada, é só uma confirmação de "já li".
+const PERMISSIONS_SEEN_KEY = 'tucan_permissions_seen_';
 
 function GearIcon({ color }) {
   return (
@@ -109,7 +119,9 @@ function Root() {
   const [configOpen, setConfigOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [confettiTrigger, setConfettiTrigger] = useState(0);
+  const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
   const { ready, profile } = useData();
+  const { t } = useLanguage();
   const celebrate = () => setConfettiTrigger(Date.now());
 
   if (!ready) {
@@ -143,7 +155,7 @@ function Root() {
       <StatusBar style="light" />
       <View style={styles.topbar}>
         <View style={styles.brand}>
-          <Text style={styles.title}>TuCAN!</Text>
+          <Text style={styles.title}>{t('common.appName')}</Text>
         </View>
         <View style={styles.right}>
           <TouchableOpacity style={styles.gearBtn} onPress={() => setProfileOpen(true)}>
@@ -152,14 +164,14 @@ function Root() {
           <TouchableOpacity style={styles.gearBtn} onPress={() => setConfigOpen(true)}>
             <GearIcon color={COLORS.inkSoft} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.gearBtn} onPress={() => supabase.auth.signOut()}>
+          <TouchableOpacity style={styles.gearBtn} onPress={() => setSignOutConfirmOpen(true)}>
             <Text style={{ color: COLORS.inkSoft, fontSize: 11 }}>⎋</Text>
           </TouchableOpacity>
         </View>
       </View>
 
       <View style={{ flex: 1 }}>
-        {tab === 'hoje' && <HojeScreen onCelebrate={celebrate} />}
+        {tab === 'hoje' && <HojeScreen onCelebrate={celebrate} onOpenConfig={() => setConfigOpen(true)} />}
         {tab === 'semana' && <SemanaScreen />}
         {tab === 'treino' && <TreinoScreen />}
       </View>
@@ -171,6 +183,16 @@ function Root() {
       <View pointerEvents="none" style={styles.confettiLayer}>
         <Confetti trigger={confettiTrigger} />
       </View>
+
+      <ConfirmModal
+        visible={signOutConfirmOpen}
+        title={t('signOut.confirmTitle')}
+        confirmLabel={t('signOut.confirmBtn')}
+        cancelLabel={t('signOut.cancelBtn')}
+        danger
+        onCancel={() => setSignOutConfirmOpen(false)}
+        onConfirm={() => { setSignOutConfirmOpen(false); supabase.auth.signOut(); }}
+      />
     </SafeAreaView>
   );
 }
@@ -184,6 +206,34 @@ export default function App() {
 
   const [session, setSession] = useState(undefined); // undefined = still checking, null = logged out
   const [passwordRecovery, setPasswordRecovery] = useState(() => isPasswordRecoveryUrl());
+  // undefined = ainda a verificar AsyncStorage, false = por mostrar,
+  // true = já visto (ou nada a mostrar, sem sessão). Ver
+  // PermissionsScreen — item 4 do focus group, 11/09/2026.
+  const [permissionsSeen, setPermissionsSeen] = useState(true);
+
+  useEffect(() => {
+    const userId = session?.user?.id;
+    if (!userId) { setPermissionsSeen(true); return; }
+    let cancelled = false;
+    setPermissionsSeen(undefined);
+    (async () => {
+      let seen = true;
+      try {
+        seen = !!(await AsyncStorage.getItem(PERMISSIONS_SEEN_KEY + userId));
+      } catch (e) {
+        seen = true; // falha a ler AsyncStorage não deve bloquear a app
+      }
+      if (!cancelled) setPermissionsSeen(seen);
+    })();
+    return () => { cancelled = true; };
+  }, [session?.user?.id]);
+
+  async function markPermissionsSeen() {
+    const userId = session?.user?.id;
+    setPermissionsSeen(true);
+    if (!userId) return;
+    try { await AsyncStorage.setItem(PERMISSIONS_SEEN_KEY + userId, '1'); } catch (e) { /* best-effort */ }
+  }
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -230,6 +280,17 @@ export default function App() {
     );
   } else if (!session) {
     content = <LoggedOutFlow />;
+  } else if (permissionsSeen === undefined) {
+    content = (
+      <View style={styles.loading}>
+        <ActivityIndicator color={COLORS.electro} size="large" />
+      </View>
+    );
+  } else if (!permissionsSeen) {
+    // Ecrã informativo pós-login (item 4, focus group 11/09/2026) — só
+    // explica o que NÃO é acedido, sem toggles; mostra-se uma única vez
+    // por conta neste dispositivo.
+    content = <PermissionsScreen onContinue={markPermissionsSeen} />;
   } else {
     content = (
       <DataProvider user={session.user}>
@@ -239,14 +300,16 @@ export default function App() {
   }
 
   return (
-    <View style={styles.appOuter}>
-      {/* Shown above absolutely everything, on every screen, whenever the
-          page is running inside WhatsApp/Instagram/etc.'s embedded
-          browser — Google refuses OAuth there, and some of these also
-          break plain email/password login (see InAppBrowserBanner.js). */}
-      <InAppBrowserBanner />
-      <WebFrame>{content}</WebFrame>
-    </View>
+    <LanguageProvider>
+      <View style={styles.appOuter}>
+        {/* Shown above absolutely everything, on every screen, whenever the
+            page is running inside WhatsApp/Instagram/etc.'s embedded
+            browser — Google refuses OAuth there, and some of these also
+            break plain email/password login (see InAppBrowserBanner.js). */}
+        <InAppBrowserBanner />
+        <WebFrame>{content}</WebFrame>
+      </View>
+    </LanguageProvider>
   );
 }
 
