@@ -659,6 +659,22 @@ os cenários. Entregue ao computador da Tania via ponte de dispositivo
    confirmar que o Perfect! só acende com as âncoras todas e que o
    ProudOfMe acende com qualquer registo do dia.
 
+### Push confirmado — 17/09/2026
+
+A Tania fez `git add`/`commit`/`push` das alterações da secção 1 (código +
+selos visuais na Hoje + tutoriais). Confirmado via `git fetch origin`:
+`origin/main` está agora no commit `ef82bf5`, com o conteúdo a bater
+certo 1:1 com o commit local desta sessão (a única diferença é este
+próprio ficheiro de contexto, que é só local, nunca vai para o
+repositório dela). Workspace cloud realinhado com `git checkout -B main
+origin/main` logo a seguir, para os próximos diffs partirem de terreno
+verificado.
+
+Falta confirmar com ela: se já correu o SQL
+`supabase/sql/anchor_observation_fields.sql` no Supabase (sem isso, o
+`kind`/`anchor_ids` não existem na BD e o upsert de campos/dias falha
+em silêncio ou cai sempre em "anchor" por omissão).
+
 ### Por fazer (secções 2–12, só quando a Tania pedir)
 
 Badges (12 iniciais), travessias (ciclos com corte aos 30 dias, fecho
