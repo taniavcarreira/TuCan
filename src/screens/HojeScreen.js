@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
-import { COLORS, FONTS, textColorFor, NAV_HEIGHT } from '../theme';
+import { COLORS, FONTS, textColorFor, withAlpha, NAV_HEIGHT } from '../theme';
 import { useData } from '../context/DataContext';
 import { useLanguage } from '../i18n/LanguageContext';
-import { currentScore, maxScore, scoreMessage, fieldOk, fieldValue, decimalsOf, suggestedFields, energiaOptions } from '../utils/fields';
+import { currentScore, maxScore, scoreMessage, fieldOk, fieldValue, fieldKind, decimalsOf, suggestedFields, energiaOptions, anchorFields, hasAnyLog } from '../utils/fields';
 import { localeFor } from '../utils/dates';
 import RingChart from '../components/RingChart';
-import Shape, { ConfettiIcon } from '../components/Shape';
+import Shape, { ProudOfMeIcon, AnchorGlyph, EyeGlyph } from '../components/Shape';
 import ElectricLine from '../components/ElectricLine';
 
 export default function HojeScreen({ onCelebrate, onOpenConfig }) {
@@ -18,15 +18,19 @@ export default function HojeScreen({ onCelebrate, onOpenConfig }) {
 
   if (!day) return null;
 
+  // Especificação v2 (secção 1, 12/09/2026) — substitui o item 8 antigo:
+  // o score/anel passa a medir só os campos-âncora (maxScore/currentScore
+  // já filtram por `kind` em fields.js); o ProudOfMe deixou de valer
+  // pontos, por isso `anchors` é a lista que decide se o Perfect! sequer
+  // existe hoje.
+  const anchors = anchorFields(customFields);
   const score = currentScore(day, customFields);
   const max = maxScore(customFields);
   const msg = scoreMessage(score, max, t);
-  // Item 8 (focus group, 11/09/2026): Perfect! só fica disponível
-  // quando TODOS os outros campos estão no objetivo definido — os
-  // booleanos marcados, os de contagem no target — E o ProudOfMe
-  // também está marcado. `isWin` já capta exactamente isso, porque
-  // currentScore/maxScore contam o ProudOfMe como +1 no total.
   const isWin = max > 0 && score === max;
+  // ProudOfMe (secção 1.2): desbloqueia com QUALQUER registo do dia —
+  // já não exige cumprir nada, só mostrar que a pessoa apareceu.
+  const proudUnlocked = day.therapy || hasAnyLog(day, customFields);
 
   async function updateDay(mutator) {
     const next = { ...todayWeek, days: { ...todayWeek.days } };
@@ -42,9 +46,11 @@ export default function HojeScreen({ onCelebrate, onOpenConfig }) {
   }
 
   const toggleFixed = (key) => {
-    // Só bloqueia a ATIVAÇÃO do Perfect! sem os requisitos cumpridos —
-    // desmarcar continua sempre livre.
+    // Só bloqueia a ATIVAÇÃO sem os requisitos cumpridos — desmarcar
+    // continua sempre livre. Perfect! exige todas as âncoras (isWin);
+    // ProudOfMe exige só qualquer registo no dia (proudUnlocked).
     if (key === 'perfect' && !day.perfect && !isWin) return;
+    if (key === 'therapy' && !day.therapy && !proudUnlocked) return;
     updateDay((d) => { d[key] = !d[key]; });
   };
   const toggleBool = (fieldId) => updateDay((d) => { d.custom[fieldId] = !d.custom[fieldId]; });
@@ -55,6 +61,7 @@ export default function HojeScreen({ onCelebrate, onOpenConfig }) {
   });
   const setMood = (val) => updateDay((d) => { d.mood = val; });
 
+  const proudDisabled = !day.therapy && !proudUnlocked;
   const perfectDisabled = !day.perfect && !isWin;
 
   return (
@@ -76,26 +83,41 @@ export default function HojeScreen({ onCelebrate, onOpenConfig }) {
         </View>
       </View>
 
-      {/* Fixed row: ProudOfMe (75%) + Perfect! (25%) */}
+      {/* Fixed row: ProudOfMe (observação, desbloqueia com qualquer registo)
+          + Perfect! (exige todas as âncoras) — especificação v2, secção 1. */}
       <View style={styles.proudRow}>
         <TouchableOpacity
-          style={[styles.quickBtn, { flex: 3 }, day.therapy && { backgroundColor: COLORS.c7 }]}
-          onPress={() => toggleFixed('therapy')}
-        >
-          <ConfettiIcon size={18} />
-          <Text style={[styles.quickBtnText, day.therapy && { color: COLORS.bg }]}>{t('common.proudOfMe')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
           style={[
-            styles.quickBtn, { flex: 1, justifyContent: 'center' },
-            day.perfect && { backgroundColor: COLORS.c4 },
-            perfectDisabled && styles.quickBtnDisabled,
+            styles.quickBtn, { flex: 3 },
+            day.therapy && { backgroundColor: COLORS.c7 },
+            proudDisabled && styles.quickBtnDisabled,
           ]}
-          onPress={() => toggleFixed('perfect')}
-          disabled={perfectDisabled}
+          onPress={() => toggleFixed('therapy')}
+          disabled={proudDisabled}
         >
-          <Text style={[styles.quickBtnText, day.perfect && { color: COLORS.bg }, perfectDisabled && styles.quickBtnTextDisabled]}>{t('common.perfect')}</Text>
+          <ProudOfMeIcon size={18} active={day.therapy} />
+          <Text style={[styles.quickBtnText, day.therapy && { color: COLORS.bg }, proudDisabled && styles.quickBtnTextDisabled]}>{t('common.proudOfMe')}</Text>
         </TouchableOpacity>
+        {anchors.length === 0 ? (
+          <TouchableOpacity
+            style={[styles.quickBtn, styles.perfectCta, { flex: 1 }]}
+            onPress={() => onOpenConfig && onOpenConfig()}
+          >
+            <Text style={styles.perfectCtaText}>{t('hoje.perfectNeedsAnchor')}</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[
+              styles.quickBtn, { flex: 1, justifyContent: 'center' },
+              day.perfect && { backgroundColor: COLORS.c4 },
+              perfectDisabled && styles.quickBtnDisabled,
+            ]}
+            onPress={() => toggleFixed('perfect')}
+            disabled={perfectDisabled}
+          >
+            <Text style={[styles.quickBtnText, day.perfect && { color: COLORS.bg }, perfectDisabled && styles.quickBtnTextDisabled]}>{t('common.perfect')}</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Item 1 (focus group, 11/09/2026): na primeira visita de sempre
@@ -123,22 +145,36 @@ export default function HojeScreen({ onCelebrate, onOpenConfig }) {
             <Text style={styles.emptyNote}>{t('hoje.emptyNote')}</Text>
           )}
           {customFields.map((f) => {
+            // Especificação v2, secção 1.4: o fundo do campo mantém-se
+            // igual para âncoras (é o que sempre foi); campos de
+            // observação ficam com um fundo mais apagado, e cada campo
+            // ganha um selo discreto no canto superior direito — âncora
+            // ou olho — para se distinguir de relance na aba Hoje.
+            const isObs = fieldKind(f) === 'observation';
             if (f.type === 'bool') {
               const on = !!fieldValue(day, f);
+              const glyphColor = on ? textColorFor(f.color) : COLORS.inkSoft;
               return (
                 <TouchableOpacity
                   key={f.id}
-                  style={[styles.tile, on && { backgroundColor: f.color, borderColor: 'transparent' }]}
+                  style={[
+                    styles.tile,
+                    isObs && styles.tileObservation,
+                    on && { backgroundColor: isObs ? withAlpha(f.color, 0.45) : f.color, borderColor: 'transparent' },
+                  ]}
                   onPress={() => toggleBool(f.id)}
                 >
                   <Shape shape={f.shape} color={on ? textColorFor(f.color) : f.color} size={18} />
                   <Text style={[styles.tileText, on && { color: textColorFor(f.color) }]}>{f.name}</Text>
+                  {isObs
+                    ? <EyeGlyph size={11} color={glyphColor} style={[styles.kindGlyph, { opacity: 0.6 }]} />
+                    : <AnchorGlyph size={11} color={glyphColor} style={[styles.kindGlyph, { opacity: 0.6 }]} />}
                 </TouchableOpacity>
               );
             }
             const val = fieldValue(day, f);
             return (
-              <View key={f.id} style={styles.countTile}>
+              <View key={f.id} style={[styles.countTile, isObs && styles.tileObservation]}>
                 <View style={styles.countLabelRow}>
                   <Shape shape={f.shape} color={f.color} size={16} />
                   <Text style={styles.tileText}>{f.name}</Text>
@@ -152,6 +188,9 @@ export default function HojeScreen({ onCelebrate, onOpenConfig }) {
                     <Text style={styles.wbtnText}>+</Text>
                   </TouchableOpacity>
                 </View>
+                {isObs
+                  ? <EyeGlyph size={11} color={COLORS.inkSoft} style={[styles.kindGlyph, { opacity: 0.6 }]} />
+                  : <AnchorGlyph size={11} color={COLORS.inkSoft} style={[styles.kindGlyph, { opacity: 0.6 }]} />}
               </View>
             );
           })}
@@ -198,6 +237,8 @@ const styles = StyleSheet.create({
   quickBtnText: { fontFamily: FONTS.bodyBold, fontSize: 14, color: COLORS.ink },
   quickBtnDisabled: { opacity: 0.4 },
   quickBtnTextDisabled: { color: COLORS.inkSoft },
+  perfectCta: { borderStyle: 'dashed', justifyContent: 'center', paddingHorizontal: 8 },
+  perfectCtaText: { fontFamily: FONTS.bodyBold, fontSize: 10.5, color: COLORS.inkSoft, textAlign: 'center', lineHeight: 13 },
 
   suggestedWrap: { marginBottom: 14 },
   suggestedTitle: { fontFamily: FONTS.bodyBold, fontSize: 12.5, color: COLORS.ink, marginBottom: 3 },
@@ -206,10 +247,15 @@ const styles = StyleSheet.create({
 
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14 },
   emptyNote: { color: COLORS.inkSoft, fontSize: 13, textAlign: 'center', width: '100%', paddingVertical: 18 },
-  tile: { width: '48%', flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 15, paddingHorizontal: 14, borderRadius: 8, backgroundColor: COLORS.card, borderWidth: 2, borderColor: COLORS.line },
+  tile: { width: '48%', flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 15, paddingHorizontal: 14, borderRadius: 8, backgroundColor: COLORS.card, borderWidth: 2, borderColor: COLORS.line, position: 'relative' },
   tileText: { fontFamily: FONTS.bodyBold, fontSize: 13.5, color: COLORS.ink },
+  // Campos de observação (especificação v2, secção 1.1): fundo e
+  // contorno mais apagados do que o `card` normal, para recuarem
+  // visualmente em relação às âncoras sem desaparecer da grelha.
+  tileObservation: { backgroundColor: withAlpha(COLORS.card, 0.4), borderColor: withAlpha(COLORS.line, 0.45) },
+  kindGlyph: { position: 'absolute', top: 6, right: 6 },
 
-  countTile: { width: '48%', backgroundColor: COLORS.card, borderWidth: 2, borderColor: COLORS.line, borderRadius: 8, padding: 12, gap: 9 },
+  countTile: { width: '48%', backgroundColor: COLORS.card, borderWidth: 2, borderColor: COLORS.line, borderRadius: 8, padding: 12, gap: 9, position: 'relative' },
   countLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
   countControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   wbtn: { width: 30, height: 30, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },

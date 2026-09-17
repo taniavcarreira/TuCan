@@ -88,16 +88,53 @@ export function fieldOk(day, f) {
   return f.type === 'bool' ? !!v : v >= f.target;
 }
 
+// Sistema âncora/observação (especificação v2, 12/09/2026, secção 1):
+// campos-âncora são o que a pessoa quer mesmo cumprir e contam para o
+// Perfect!/score; campos de observação só servem para olhar para trás,
+// sem pressão de cumprir. Campos antigos (de antes desta distinção
+// existir) não têm `kind` gravado — tratados como âncora por omissão,
+// tal como o valor por omissão da coluna `kind` na BD (ver migração
+// supabase/sql/anchor_observation_fields.sql).
+export function fieldKind(f) {
+  return f.kind === 'observation' ? 'observation' : 'anchor';
+}
+export function anchorFields(customFields) {
+  return customFields.filter((f) => fieldKind(f) !== 'observation');
+}
+export function observationFields(customFields) {
+  return customFields.filter((f) => fieldKind(f) === 'observation');
+}
+// Acima deste número de âncoras, Configurações mostra um aviso suave
+// (nunca bloqueia) — décimo passo confirmado com a Tania a 13/09/2026.
+export const ANCHOR_WARNING_THRESHOLD = 4;
+
+// Score/anel: passa a medir só os campos-âncora (secção 1.3, ponto 3 —
+// decisão fechada a 13/09/2026). O ProudOfMe deixou de valer pontos —
+// é só uma marca emocional, desbloqueada por `hasAnyLog` abaixo — para
+// não esvaziar o número agora que desbloqueia sempre que há qualquer
+// registo no dia.
 export function maxScore(customFields) {
-  return customFields.length + 1; // +1 for the fixed ProudOfMe field
+  return anchorFields(customFields).length;
 }
 
 export function currentScore(day, customFields) {
-  let score = day.therapy ? 1 : 0;
-  customFields.forEach((f) => {
+  let score = 0;
+  anchorFields(customFields).forEach((f) => {
     if (fieldOk(day, f)) score++;
   });
   return score;
+}
+
+// ProudOfMe (secção 1.2): desbloqueia assim que há QUALQUER registo no
+// dia — qualquer campo (âncora ou observação) preenchido, ou a Energia
+// marcada. Não conta o próprio ProudOfMe, para não se desbloquear a
+// si mesmo.
+export function hasAnyLog(day, customFields) {
+  if (day.mood) return true;
+  return customFields.some((f) => {
+    const v = fieldValue(day, f);
+    return f.type === 'bool' ? !!v : v > 0;
+  });
 }
 
 // Escala de energia — 5 emojis (sad → happy), substituindo o antigo

@@ -48,14 +48,14 @@ const ENTRIES = [
   ['onboarding.hoje.lede1', 'O check-in do dia. Abres, marcas o que fizeste, fechas. ', "Today's check-in. Open, mark what you did, close. ", "Le point du jour. Tu ouvres, tu coches ce que tu as fait, tu fermes. "],
   ['onboarding.hoje.ledeStrong', '30 segundos, no máximo.', '30 seconds, tops.', '30 secondes, maximum.'],
   ['onboarding.hoje.f1title', 'ProudOfMe', 'ProudOfMe', 'ProudOfMe'],
-  ['onboarding.hoje.f1sub', 'Marca sempre que fizeres algo só por ti — vale 75% do dia.', "Mark it whenever you do something just for you — it's 75% of the day.", "Coche-le dès que tu fais quelque chose rien que pour toi — ça vaut 75 % de la journée."],
+  ['onboarding.hoje.f1sub', 'Acende com qualquer registo do dia — nem precisa de ser um "sim". Só mostra que apareceste.', 'Lights up with any log for the day — it doesn\'t even need to be a "yes". It just shows you showed up.', 'S\'allume dès qu\'il y a un enregistrement dans la journée — même pas besoin d\'un « oui ». Ça montre juste que tu es venu.'],
   ['onboarding.hoje.f2title', 'Perfect!', 'Perfect!', 'Perfect!'],
-  ['onboarding.hoje.f2sub', 'Quando o dia correu redondinho — os outros 25%, e o confeti dispara.', "When the day went perfectly — the other 25%, and the confetti fires.", "Quand la journée s'est parfaitement déroulée — les 25 % restants, et les confettis se déclenchent."],
+  ['onboarding.hoje.f2sub', 'Só conta os campos que marcares como "âncora" — os que decidires que são mesmo para cumprir. O resto fica de fora, sem peso.', 'Only counts the fields you mark as "anchor" — the ones you decide are really worth doing. Everything else stays out, no pressure.', 'Ne compte que les champs que tu marques comme « ancre » — ceux que tu décides d\'accomplir vraiment. Le reste reste en dehors, sans pression.'],
   ['onboarding.hoje.f3title', 'Até 10 campos teus', 'Up to 10 fields of your own', "Jusqu'à 10 champs à toi"],
   ['onboarding.hoje.f3sub', 'Sim/não simples, ou contagens com meta própria — "60 min", "2 litros".', 'Simple yes/no, or counts with their own target — "60 min", "2 litres".', 'Simple oui/non, ou des comptages avec ton propre objectif — « 60 min », « 2 litres ».'],
   ['onboarding.hoje.f4title', 'Energia, com emojis', 'Energy, with emojis', 'Énergie, avec des emojis'],
   ['onboarding.hoje.f4sub', 'Do sem-energia ao motivado — sem certo, sem errado, só um registo honesto.', 'From drained to fired up — no right or wrong, just an honest record.', 'De vidé à motivé — ni bien ni mal, juste un constat honnête.'],
-  ['onboarding.hoje.footnote', 'Chegaste a 100%? Confetis, som, e o tucano voa até ao ramo e pisca-te o olho. A sério.', 'Hit 100%? Confetti, sound, and the toucan flies to the branch and winks at you. Seriously.', 'Tu as atteint 100 % ? Confettis, son, et le toucan s\'envole jusqu\'à la branche et te fait un clin d\'œil. Sérieusement.'],
+  ['onboarding.hoje.footnote', 'Cumpriste todas as tuas âncoras do dia? Confetis, som, e o tucano voa até ao ramo e pisca-te o olho. A sério.', 'Hit every anchor for the day? Confetti, sound, and the toucan flies to the branch and winks at you. Seriously.', 'Tu as atteint toutes tes ancres du jour ? Confettis, son, et le toucan s\'envole jusqu\'à la branche et te fait un clin d\'œil. Sérieusement.'],
 
   ['onboarding.semana.title', 'Semana', 'Week', 'Semaine'],
   ['onboarding.semana.lede1', 'A vista de longe. ', 'The long view. ', "La vue d'ensemble. "],
@@ -84,6 +84,8 @@ const ENTRIES = [
   ['onboarding.config.lede1', 'Aqui é onde a TuCAN! deixa de ser genérica e passa a ser ', 'This is where TuCAN! stops being generic and becomes ', "C'est ici que TuCAN! cesse d'être générique et devient "],
   ['onboarding.config.ledeStrong', 'tua', 'yours', 'la tienne'],
   ['onboarding.config.lede2', '.', '.', '.'],
+  ['onboarding.config.kindTitle', 'Âncora ou observação', 'Anchor or observation', 'Ancre ou observation'],
+  ['onboarding.config.kindSub', 'Escolhes por campo: "âncora" conta para o Perfect!, "observação" é só para veres — nunca trava nada.', 'You choose per field: "anchor" counts toward Perfect!, "observation" is just for you to see — it never blocks anything.', 'Tu choisis par champ : « ancre » compte pour le Perfect!, « observation » est juste là pour que tu voies — ça ne bloque jamais rien.'],
   ['onboarding.config.f1title', 'Até 10 campos próprios', 'Up to 10 fields of your own', "Jusqu'à 10 champs à toi"],
   ['onboarding.config.f1sub', 'Estes dois ficam sempre — o resto constróis tu.', 'These two always stay — the rest you build yourself.', 'Ces deux-là restent toujours — le reste, tu le construis toi-même.'],
   ['onboarding.config.f2title', 'Nome, tipo, cor e ícone', 'Name, type, color and icon', 'Nom, type, couleur et icône'],
@@ -140,6 +142,7 @@ const ENTRIES = [
   ['hoje.emptyNote', 'Ainda sem campos configurados. Vai a Configurações para adicionar os teus.', 'No fields configured yet. Go to Settings to add your own.', "Pas encore de champs configurés. Va dans Paramètres pour ajouter les tiens."],
   ['hoje.suggestedTitle', 'Sugestões para começar', 'Suggestions to get started', 'Suggestions pour commencer'],
   ['hoje.suggestedHint', 'Toca numa sugestão para a configurar à tua maneira.', 'Tap a suggestion to set it up your way.', "Touche une suggestion pour la configurer à ta façon."],
+  ['hoje.perfectNeedsAnchor', 'Define uma âncora em Configurações para desbloqueares o Perfect!', 'Set up an anchor in Settings to unlock Perfect!', 'Définis une ancre dans Paramètres pour débloquer le Perfect!'],
 
   // ---------- sugestões de campos (placeholders da 1ª visita) ----------
   ['fields.suggested.reading', 'Leitura', 'Reading', 'Lecture'],
@@ -202,7 +205,7 @@ const ENTRIES = [
 
   // ---------- configurações ----------
   ['config.title', 'Configurações', 'Settings', 'Paramètres'],
-  ['config.intro', 'Perfect e ProudOfMe mantêm-se sempre. Os restantes campos são teus — até 10, cada um com o tipo, cor e ícone que escolheres.', 'Perfect and ProudOfMe always stay. The rest are yours — up to 10, each with the type, color and icon you choose.', 'Perfect et ProudOfMe restent toujours. Les autres champs sont à toi — jusqu\'à 10, chacun avec le type, la couleur et l\'icône de ton choix.'],
+  ['config.intro', 'Perfect e ProudOfMe mantêm-se sempre. Os restantes campos são teus — até 10, cada um âncora ou observação, com o tipo, cor e ícone que escolheres.', 'Perfect and ProudOfMe always stay. The rest are yours — up to 10, each an anchor or an observation, with the type, color and icon you choose.', 'Perfect et ProudOfMe restent toujours. Les autres champs sont à toi — jusqu\'à 10, chacun ancre ou observation, avec le type, la couleur et l\'icône de ton choix.'],
   ['config.yourFields', 'Os teus campos', 'Your fields', 'Tes champs'],
   ['config.newField', '+ Novo campo', '+ New field', '+ Nouveau champ'],
   ['config.newFieldTitle', 'Novo campo', 'New field', 'Nouveau champ'],
@@ -225,6 +228,13 @@ const ENTRIES = [
   ['config.saveField', 'Guardar campo', 'Save field', 'Enregistrer le champ'],
   ['config.updateField', 'Atualizar campo', 'Update field', 'Mettre à jour le champ'],
   ['config.stepInline', 'passo', 'step', 'incrément'],
+  // Especificação v2, secção 1 (12/09/2026): tipo de campo âncora/observação.
+  ['config.kindLabel', 'Âncora ou observação?', 'Anchor or observation?', 'Ancre ou observation ?'],
+  ['config.kindAnchor', 'Âncora', 'Anchor', 'Ancre'],
+  ['config.kindObservation', 'Observação', 'Observation', 'Observation'],
+  ['config.kindAnchorHint', 'É o que queres mesmo cumprir — conta para o Perfect!.', "It's what you actually want to follow through on — counts toward Perfect!.", 'C\'est ce que tu veux vraiment tenir — compte pour le Perfect!.'],
+  ['config.kindObservationHint', 'Só queres ver como corre — não precisa de ser cumprido, não conta para o Perfect!.', "You just want to keep an eye on it — no pressure to hit it, doesn't count toward Perfect!.", 'Tu veux juste observer — pas besoin de le tenir, ne compte pas pour le Perfect!.'],
+  ['config.anchorWarning', 'Já tens {n} âncoras. Vale a pena verificar se não ficou muito para cumprir todos os dias — podes sempre passar alguma a observação.', "You've got {n} anchors already. Worth checking whether that's a lot to hit every day — you can always switch one to observation.", 'Tu as déjà {n} ancres. Ça vaut la peine de vérifier si ce n\'est pas trop à tenir chaque jour — tu peux toujours en repasser une en observation.'],
 
   // ---------- perfil ----------
   ['profile.title', 'A minha conta', 'My account', 'Mon compte'],

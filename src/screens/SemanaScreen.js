@@ -3,9 +3,9 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-nati
 import { COLORS, FONTS, textColorFor, NAV_HEIGHT } from '../theme';
 import { useData } from '../context/DataContext';
 import { useLanguage } from '../i18n/LanguageContext';
-import { fieldOk, fieldValue, decimalsOf, energiaOptions } from '../utils/fields';
+import { fieldOk, fieldValue, decimalsOf, energiaOptions, hasAnyLog } from '../utils/fields';
 import { DAYS_FOR, isoMonday, fmtShort } from '../utils/dates';
-import Shape, { ConfettiIcon } from '../components/Shape';
+import Shape, { ProudOfMeIcon } from '../components/Shape';
 import WeeklyWaveChart from '../components/WeeklyWaveChart';
 import TrendAccordion from '../components/TrendAccordion';
 
@@ -33,7 +33,12 @@ export default function SemanaScreen() {
     const cur = d.custom[field.id] || 0;
     d.custom[field.id] = cur >= field.target ? 0 : parseFloat((cur + field.step).toFixed(dec));
   });
-  const toggleTherapy = (i) => mutateDay(i, (d) => { d.therapy = !d.therapy; });
+  // ProudOfMe (especificação v2, secção 1.2): mesma regra da Hoje — só
+  // desbloqueia depois de haver algum registo nesse dia.
+  const toggleTherapy = (i, day) => {
+    if (!day.therapy && !hasAnyLog(day, customFields)) return;
+    mutateDay(i, (d) => { d.therapy = !d.therapy; });
+  };
   // Item 9 (focus group, 11/09/2026): a célula compacta de "Energia" na
   // grelha semanal não tem espaço para 5 botões de emoji lado a lado,
   // por isso mantém-se a interação de tocar-para-avançar já usada nos
@@ -125,18 +130,20 @@ export default function SemanaScreen() {
         {/* ProudOfMe row */}
         <View style={[styles.gridRow, styles.gridRowBorder]}>
           <View style={styles.rowLabelSlot}>
-            <ConfettiIcon size={12} />
+            <ProudOfMeIcon size={12} />
             <Text style={styles.rowLabelText} numberOfLines={1}>{t('common.proudOfMe')}</Text>
           </View>
           {Array.from({ length: 7 }).map((_, i) => {
             const day = weekData.days[i];
             if (!day) return <View key={i} style={styles.dayCell} />;
             const on = !!day.therapy;
+            const disabled = !on && !hasAnyLog(day, customFields);
             return (
               <View key={i} style={styles.dayCell}>
                 <TouchableOpacity
-                  style={[styles.toggle, on && { backgroundColor: COLORS.c7, borderColor: 'transparent' }]}
-                  onPress={() => toggleTherapy(i)}
+                  style={[styles.toggle, on && { backgroundColor: COLORS.c7, borderColor: 'transparent' }, disabled && styles.toggleDisabled]}
+                  onPress={() => toggleTherapy(i, day)}
+                  disabled={disabled}
                 >
                   {on && <Text style={{ color: COLORS.bg, fontFamily: FONTS.display, fontSize: 12 }}>✓</Text>}
                 </TouchableOpacity>
@@ -213,6 +220,7 @@ const styles = StyleSheet.create({
   dayNum: { fontFamily: FONTS.bodyBold, fontSize: 12, color: COLORS.ink },
 
   toggle: { width: 26, height: 26, borderRadius: 6, borderWidth: 2, borderColor: COLORS.line, backgroundColor: COLORS.bg, alignItems: 'center', justifyContent: 'center' },
+  toggleDisabled: { opacity: 0.35 },
   countCellSmall: { alignItems: 'center' },
   countCellText: { fontFamily: FONTS.mono, fontSize: 11, color: COLORS.ink },
   countCellSub: { fontFamily: FONTS.mono, fontSize: 8, color: COLORS.inkSoft },

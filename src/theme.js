@@ -29,6 +29,20 @@ export function textColorFor(color) {
   return DARK_TEXT_COLORS.includes(color) ? COLORS.bg : '#fff';
 }
 
+// Converte um hex (#RGB ou #RRGGBB) em rgba(...) com o alpha pedido.
+// Usado para "apagar" visualmente um elemento sem mexer no resto do
+// estilo (ex.: distinguir campos de observação dos de âncora na aba
+// Hoje — especificação v2, secção 1, 13/09/2026).
+export function withAlpha(hex, alpha) {
+  const h = hex.replace('#', '');
+  const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
+  const n = parseInt(full, 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 export const FONTS = {
   display: 'ArchivoBlack_400Regular', // headings
   body: 'Archivo_600SemiBold',        // default body weight

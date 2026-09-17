@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { isoMonday, fmt } from '../utils/dates';
-import { blankDay, migrateDay } from '../utils/fields';
+import { blankDay, migrateDay, anchorFields } from '../utils/fields';
 import { getCachedKey, getOrCreateDeviceKey, encryptProfileField, decryptProfileField } from '../utils/profileCrypto';
 
 const DataContext = createContext(null);
@@ -47,6 +47,7 @@ export function DataProvider({ user, children }) {
     setCustomFieldsState((data || []).map((r) => ({
       id: r.id, name: r.name, type: r.type, color: r.color, shape: r.shape,
       target: r.target, metric: r.metric, step: r.step,
+      kind: r.kind === 'observation' ? 'observation' : 'anchor',
     })));
   }, [userId]);
 
@@ -76,6 +77,7 @@ export function DataProvider({ user, children }) {
     const rows = nextFields.map((f, i) => ({
       id: f.id, user_id: userId, name: f.name, type: f.type, color: f.color,
       shape: f.shape, target: f.target, metric: f.metric, step: f.step, sort_order: i,
+      kind: f.kind === 'observation' ? 'observation' : 'anchor',
     }));
     const { error } = await supabase.from('fields').upsert(rows, { onConflict: 'id' });
     if (error) console.error('upsert fields', error);
@@ -106,6 +108,13 @@ export function DataProvider({ user, children }) {
     return { days };
   }, [userId]);
 
+  // `anchor_ids` (especificação v2, secção 1.3, ponto 4): fotografia de
+  // que campos eram âncora no momento deste registo. Guardado a cada
+  // gravação para que mudar o tipo de um campo mais tarde em
+  // Configurações não reescreva o significado de dias já registados —
+  // ainda não é lido de volta em lado nenhum (nenhum relatório o usa
+  // por agora, ver secção 7 da especificação), só fica pronto na BD
+  // para quando os relatórios existirem.
   const saveDayRemote = useCallback(async (dateStr, dayObj) => {
     const { error } = await supabase.from('days').upsert({
       user_id: userId,
@@ -114,9 +123,10 @@ export function DataProvider({ user, children }) {
       mood: dayObj.mood,
       therapy: dayObj.therapy,
       perfect: dayObj.perfect,
+      anchor_ids: anchorFields(customFields).map((f) => f.id),
     }, { onConflict: 'user_id,date' });
     if (error) console.error('saveDayRemote', error);
-  }, [userId]);
+  }, [userId, customFields]);
 
   const loadSemana = useCallback(async () => {
     const wd = await fetchWeek(currentMonday);

@@ -45,6 +45,13 @@ function MiniIcon({ type, color = COLORS.bg }) {
       return <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.4}><Path d="M12 19V5M6 11l6-6 6 6" /></Svg>;
     case 'dumbbell':
       return <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.2}><Path d="M6.5 6.5l11 11M4 9l3-3M20 15l-3 3M2 20l4-4M18 6l4-2M17 7l3-3M4 20l2-4" /></Svg>;
+    // Especificação v2, secção 1.4 (13/09/2026) — mesmos glifos usados
+    // como selo discreto nos campos da aba Hoje (ver AnchorGlyph/EyeGlyph
+    // em components/Shape.js), aqui a tamanho de ícone normal.
+    case 'anchor':
+      return <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.2}><Circle cx="12" cy="5" r="2.3" /><Path d="M12 7.5V17" strokeLinecap="round" /><Path d="M6 13a6 6 0 0012 0" strokeLinecap="round" /><Path d="M4.5 13h3M16.5 13h3" strokeLinecap="round" /></Svg>;
+    case 'eye':
+      return <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.2}><Path d="M2 12c3-6 17-6 20 0-3 6-17 6-20 0z" strokeLinejoin="round" /><Circle cx="12" cy="12" r="2.6" fill={color} /></Svg>;
     default:
       return null;
   }
@@ -182,6 +189,7 @@ function ConfigSlide() {
         <LockChip symbol="✨" symbolColor={COLORS.agua} label={t('common.proudOfMe')} />
       </View>
       <View style={styles.featureList}>
+        <FeatureItem bg={COLORS.c10} icon="anchor" iconColor={COLORS.ink} title={t('onboarding.config.kindTitle')} sub={t('onboarding.config.kindSub')} />
         <FeatureItem bg={COLORS.card} border icon="gridSmall" iconColor={COLORS.ink} title={t('onboarding.config.f1title')} sub={t('onboarding.config.f1sub')} />
         <FeatureItem bg={COLORS.electro} icon="lines" iconColor={COLORS.bg} title={t('onboarding.config.f2title')} sub={t('onboarding.config.f2sub')} />
         <FeatureItem bg={COLORS.c9} icon="sparkle" iconColor={COLORS.ink} title={t('onboarding.config.f3title')} sub={t('onboarding.config.f3sub')} />

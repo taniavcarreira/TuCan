@@ -5,11 +5,11 @@ import { useData } from '../context/DataContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import {
   COLOR_OPTIONS, SHAPE_OPTIONS, genId, usedColors, usedShapes,
-  firstAvailable,
+  firstAvailable, anchorFields, ANCHOR_WARNING_THRESHOLD,
 } from '../utils/fields';
-import Shape, { ConfettiIcon } from '../components/Shape';
+import Shape, { ProudOfMeIcon } from '../components/Shape';
 
-const emptyForm = { name: '', type: 'bool', color: COLOR_OPTIONS[0], shape: SHAPE_OPTIONS[0], target: '8', metric: '', step: '1' };
+const emptyForm = { name: '', kind: 'anchor', type: 'bool', color: COLOR_OPTIONS[0], shape: SHAPE_OPTIONS[0], target: '8', metric: '', step: '1' };
 
 export default function ConfigScreen({ onClose }) {
   const { customFields, persistCustomFields } = useData();
@@ -31,7 +31,7 @@ export default function ConfigScreen({ onClose }) {
   }
   function openEdit(f) {
     setForm({
-      name: f.name, type: f.type, color: f.color, shape: f.shape,
+      name: f.name, kind: f.kind === 'observation' ? 'observation' : 'anchor', type: f.type, color: f.color, shape: f.shape,
       target: String(f.target ?? 8), metric: f.metric || '', step: String(f.step ?? 1),
     });
     setEditId(f.id);
@@ -59,16 +59,17 @@ export default function ConfigScreen({ onClose }) {
     const metric = form.metric.trim();
     if (editId === null) {
       if (customFields.length >= 10) return;
-      const field = { id: genId(), name, type: form.type, color: form.color, shape: form.shape, target, metric, step };
+      const field = { id: genId(), name, kind: form.kind, type: form.type, color: form.color, shape: form.shape, target, metric, step };
       persistCustomFields([...customFields, field]);
     } else {
-      persistCustomFields(customFields.map((f) => f.id === editId ? { ...f, name, type: form.type, color: form.color, shape: form.shape, target, metric, step } : f));
+      persistCustomFields(customFields.map((f) => f.id === editId ? { ...f, name, kind: form.kind, type: form.type, color: form.color, shape: form.shape, target, metric, step } : f));
     }
     setFormOpen(false);
   }
 
   const used = usedColors(customFields, editId);
   const usedS = usedShapes(customFields, editId);
+  const anchorCount = anchorFields(customFields).length;
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={{ paddingBottom: 40 }}>
@@ -82,7 +83,7 @@ export default function ConfigScreen({ onClose }) {
 
       <View style={styles.fixedRow}>
         <View style={styles.fixedChip}>
-          <ConfettiIcon size={16} />
+          <ProudOfMeIcon size={16} />
           <Text style={styles.fixedChipText}>{t('common.proudOfMe')}</Text>
           <Text style={styles.lock}>🔒</Text>
         </View>
@@ -98,6 +99,15 @@ export default function ConfigScreen({ onClose }) {
         <Text style={styles.count}>({customFields.length}/10)</Text>
       </View>
 
+      {/* Especificação v2, secção 1.3, ponto 2: aviso suave (nunca
+          bloqueia) quando há muitas âncoras — dez âncoras reproduzem o
+          problema que o item 8 antigo tinha. */}
+      {anchorCount >= ANCHOR_WARNING_THRESHOLD && (
+        <View style={styles.warningBanner}>
+          <Text style={styles.warningText}>{t('config.anchorWarning', { n: anchorCount })}</Text>
+        </View>
+      )}
+
       <View style={{ gap: 8, marginBottom: 12 }}>
         {customFields.map((f, i) => (
           <View key={f.id} style={styles.fieldRowCfg}>
@@ -105,6 +115,8 @@ export default function ConfigScreen({ onClose }) {
             <View style={{ flex: 1 }}>
               <Text style={styles.fname}>{f.name}</Text>
               <Text style={styles.ftype}>
+                {(f.kind === 'observation' ? t('config.kindObservation') : t('config.kindAnchor'))}
+                {' · '}
                 {f.type === 'bool' ? t('config.typeBool') : `${t('config.typeCount')} · ${f.target}${f.metric ? ' ' + f.metric : ''} · ${t('config.stepInline')} ${f.step}`}
               </Text>
             </View>
@@ -146,6 +158,23 @@ export default function ConfigScreen({ onClose }) {
             placeholder={t('config.namePlaceholder')}
             placeholderTextColor={COLORS.inkSoft}
           />
+
+          <Text style={styles.label}>{t('config.kindLabel')}</Text>
+          <View style={styles.typeToggle}>
+            <TouchableOpacity
+              style={[styles.typeBtn, form.kind === 'anchor' && styles.typeBtnActive]}
+              onPress={() => setForm((f) => ({ ...f, kind: 'anchor' }))}
+            >
+              <Text style={[styles.typeBtnText, form.kind === 'anchor' && styles.typeBtnTextActive]}>{t('config.kindAnchor')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.typeBtn, form.kind === 'observation' && styles.typeBtnActive]}
+              onPress={() => setForm((f) => ({ ...f, kind: 'observation' }))}
+            >
+              <Text style={[styles.typeBtnText, form.kind === 'observation' && styles.typeBtnTextActive]}>{t('config.kindObservation')}</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.hint}>{form.kind === 'observation' ? t('config.kindObservationHint') : t('config.kindAnchorHint')}</Text>
 
           <Text style={styles.label}>{t('config.typeLabel')}</Text>
           <View style={styles.typeToggle}>
@@ -273,6 +302,9 @@ const styles = StyleSheet.create({
   iconOptSelected: { borderColor: COLORS.ink, backgroundColor: '#22262b' },
 
   hint: { fontSize: 10.5, color: COLORS.inkSoft, marginTop: 6, lineHeight: 15 },
+
+  warningBanner: { backgroundColor: COLORS.card, borderWidth: 2, borderColor: COLORS.c4, borderRadius: 8, padding: 12, marginBottom: 12 },
+  warningText: { fontSize: 12, color: COLORS.ink, lineHeight: 17 },
 
   formActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
   cancelBtn: { flex: 1, padding: 13, borderRadius: 8, borderWidth: 2, borderColor: COLORS.line, alignItems: 'center' },

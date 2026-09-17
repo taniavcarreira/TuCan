@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import Svg, { Circle } from 'react-native-svg';
 import { COLORS, FONTS } from '../theme';
-import { fieldOk } from '../utils/fields';
+import { fieldOk, anchorFields } from '../utils/fields';
 
 const SIZE = 190;
 const R = 82;
@@ -78,21 +78,12 @@ export default function RingChart({ day, customFields, score, max, perfect, perf
   const segFrac = total > 0 ? 1 / total - gapFrac : 0;
   const arcLen = C * segFrac;
 
+  // Só os campos-âncora entram no anel — os de observação não contam
+  // para o Perfect!/score (especificação v2, secção 1.3). O ProudOfMe
+  // (antigo `day.therapy`) deixou de ter segmento próprio aqui.
   const segments = [];
   let i = 0;
-  if (day.therapy) {
-    segments.push(
-      <Circle
-        key="therapy"
-        cx={CX} cy={CY} r={R} fill="none"
-        stroke={COLORS.c7} strokeWidth="16" strokeLinecap="round"
-        strokeDasharray={`${arcLen} ${C - arcLen}`}
-        strokeDashoffset={-(C * (i / total))}
-      />
-    );
-  }
-  i++;
-  customFields.forEach((f) => {
+  anchorFields(customFields).forEach((f) => {
     if (fieldOk(day, f)) {
       segments.push(
         <Circle
