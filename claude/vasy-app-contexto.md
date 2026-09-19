@@ -755,3 +755,92 @@ pedido explícito dela para depois desta entrega.
    batida"), abrir a aba Conquistas, tocar num badge para ver o
    histórico. Confirmar que o som do badge é audível e que dá para o
    desligar em Perfil.
+
+## Calendário mensal + partilha (19/09/2026)
+
+Pedido dela: "podes desenvolver numa branch em paralelo um calendário
+inspirado no do Yazio (imagem em anexo) e um botão de compartilhamento
+que faz um screenshot do calendário e propõe enviar por WhatsApp ou
+email ou outro?" — explicitamente numa branch à parte, para não mexer
+no que ela ainda está a validar na `main`.
+
+**Branch:** `feature/calendario-partilha` (a partir da ponta da `main`,
+que já inclui badges/travessias/Conquistas). Commit
+`5b3f832 Adiciona calendário mensal com partilha (branch em paralelo)`.
+**Nada disto está na `main` nem foi feito push** — fica só nesta cópia
+até ela mandar juntar.
+
+### O que mudou em relação à imagem de referência (YaZio)
+
+A imagem que ela mandou tem: grelha do mês com ✔ verde / ✗ vermelho,
+uma linha de stats "Ativo 1798 dias / Dias verdes 8/30 / Peso -2,0kg",
+e um botão "Compartilhe seu sucesso". Duas coisas foram deliberadamente
+trocadas, pelos princípios da secção 0 da especificação:
+
+- **Sem X vermelho.** Um dia sem registo passou a um círculo com
+  contorno neutro, igual visualmente a um dia futuro — não é uma falha,
+  é só ausência de dados (princípio 6, "reenquadramento, não
+  avaliação"; o mesmo modelo de 3 estados já desenhado para o Bloco 1
+  do relatório semanal, secção 7.1, aplicado agora a um mês inteiro).
+- **Sem "Peso".** Substituído por "Badges este mês" — nenhum número que
+  alimente compulsão entra no cartão que vai ser partilhado (princípio
+  5). "Travessia atual" e "Registados este mês" completam a linha de
+  stats.
+
+Três estados por dia: **verde** (todas as âncoras cumpridas), **âmbar**
+(algum registo, nem tudo cumprido), **contorno neutro** (sem registo).
+Legenda explícita por baixo da grelha.
+
+### Ficheiros
+
+- `src/screens/CalendarShareScreen.js` (novo) — ecrã com navegação de
+  mês (setas), grelha semanas-à-segunda, linha de stats, e o botão de
+  partilha. O cartão inteiro (para captura) está dentro de um
+  `<ViewShot>`.
+- `src/utils/dates.js` — `monthLongLabel` (ex.: "setembro de 2026") e
+  `monthGrid` (grelha de semanas com células `null` a preencher antes/
+  depois do mês, semana começa à segunda).
+- `src/screens/ConquistasScreen.js` — botão "Ver calendário mensal" logo
+  a seguir ao banner "Travessia atual".
+- `App.js` — novo estado `calendarOpen`, renderiza `CalendarShareScreen`
+  em ecrã cheio quando aberto.
+- `src/i18n/translations.js` — bloco `calendar.*` (PT/EN/FR).
+- `package.json` — `expo-sharing` (~14.0.8), `react-native-view-shot`
+  (4.0.3) e `html2canvas` (1.4.1, explícito — antes só vinha
+  transitivamente pelo `react-native-view-shot`).
+
+### Partilha: nativo vs. browser (diferença real, importante explicar)
+
+- **iOS/Android (build nativo):** `expo-sharing` abre a folha de
+  partilha do sistema operativo — WhatsApp, Mail, Mensagens, etc.
+  aparecem todos automaticamente, exatamente como no pedido original.
+- **Browser (a versão publicada no GitHub Pages):** o Web Share API só
+  parece o suficiente para partilhar ficheiros em telemóveis
+  (Android/iOS Safari/Chrome) — aí também abre uma folha de partilha
+  do sistema com WhatsApp/Mail. **Em computador, a esmagadora maioria
+  dos browsers não deixa nenhuma app partilhar ficheiros diretamente**
+  (`navigator.canShare({files})` devolve `false`), por isso cai-se para
+  descarregar a imagem com uma explicação ("a imagem foi descarregada —
+  anexa-a à conversa que preferires"). Isto é uma limitação do browser,
+  não da app — vale a pena ela saber isto antes de testar em desktop e
+  achar que está partido.
+
+### Bug real encontrado e corrigido durante os testes
+
+`react-native-view-shot` 4.x tenta resolver a view com `findNodeHandle`
+antes de capturar, e essa chamada rebenta no browser nesta combinação
+de Expo/React Native Web ("findNodeHandle is not supported on web").
+Corrigido chamando o `html2canvas` diretamente sobre o nó DOM do cartão
+no ramo web (`cardRef.current` — no React Native Web a ref de uma
+`<View>` já é o próprio elemento DOM), mantendo o caminho nativo da
+biblioteca intacto para iOS/Android.
+
+Testado com Playwright (sessão Supabase mockada, histórico sintético de
+`days` cobrindo um mês inteiro com os três estados): grelha, navegação
+entre meses, stats, e o botão de partilha (incluindo o download real do
+PNG gerado, confirmado visualmente igual ao cartão do ecrã) — tudo
+correto em PT e EN, zero erros de consola, testado no build de produção
+minificado.
+
+**Por fazer a seguir:** só quando ela validar isto e disser para juntar
+à `main` — nada foi feito push, fica só localmente nesta branch.
