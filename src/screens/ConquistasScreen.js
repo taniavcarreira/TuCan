@@ -25,7 +25,7 @@ function useAllEarned(byBadge) {
   }, [byBadge]);
 }
 
-export default function ConquistasScreen() {
+export default function ConquistasScreen({ onOpenCalendar }) {
   const { badgesData } = useData();
   const { t, language } = useLanguage();
   const [subTab, setSubTab] = useState('collection');
@@ -69,6 +69,12 @@ export default function ConquistasScreen() {
           <Text style={styles.crossingDate}>{t('conquistas.crossingOf', { date: fmtLongDate(liveCycle.startedOn, language) })}</Text>
           <Text style={styles.crossingDays}>{t('conquistas.daysInCrossing', { n: liveCycle.daysLogged })}</Text>
         </View>
+      )}
+
+      {onOpenCalendar && (
+        <TouchableOpacity style={styles.calendarBtn} onPress={onOpenCalendar}>
+          <Text style={styles.calendarBtnText}>{t('conquistas.openCalendar')}</Text>
+        </TouchableOpacity>
       )}
 
       <View style={styles.tabsRow}>
@@ -196,6 +202,9 @@ const styles = StyleSheet.create({
   crossingLabel: { fontSize: 10.5, color: COLORS.inkSoft, fontFamily: FONTS.bodyBold, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
   crossingDate: { fontFamily: FONTS.display, fontSize: 16, color: COLORS.ink },
   crossingDays: { fontSize: 12.5, color: COLORS.inkSoft, marginTop: 3 },
+
+  calendarBtn: { borderWidth: 2, borderColor: COLORS.line, borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginBottom: 16 },
+  calendarBtnText: { color: COLORS.ink, fontFamily: FONTS.bodyBold, fontSize: 13 },
 
   tabsRow: { flexDirection: 'row', gap: 8, marginBottom: 18 },
   subTabBtn: { flex: 1, paddingVertical: 9, alignItems: 'center', borderRadius: 8, borderWidth: 2, borderColor: COLORS.line, backgroundColor: COLORS.bg },

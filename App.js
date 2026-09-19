@@ -20,6 +20,7 @@ import HojeScreen from './src/screens/HojeScreen';
 import SemanaScreen from './src/screens/SemanaScreen';
 import TreinoScreen from './src/screens/TreinoScreen';
 import ConquistasScreen from './src/screens/ConquistasScreen';
+import CalendarShareScreen from './src/screens/CalendarShareScreen';
 import ConfigScreen from './src/screens/ConfigScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import BottomNav from './src/components/BottomNav';
@@ -120,6 +121,7 @@ function Root() {
   const [tab, setTab] = useState('hoje');
   const [configOpen, setConfigOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [confettiTrigger, setConfettiTrigger] = useState(0);
   const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
   const { ready, profile, newBadgeEvent, badgeSoundEnabled } = useData();
@@ -152,6 +154,15 @@ function Root() {
     );
   }
 
+  if (calendarOpen) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <StatusBar style="light" />
+        <CalendarShareScreen onClose={() => setCalendarOpen(false)} />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar style="light" />
@@ -176,7 +187,7 @@ function Root() {
         {tab === 'hoje' && <HojeScreen onCelebrate={celebrate} onOpenConfig={() => setConfigOpen(true)} />}
         {tab === 'semana' && <SemanaScreen />}
         {tab === 'treino' && <TreinoScreen />}
-        {tab === 'conquistas' && <ConquistasScreen />}
+        {tab === 'conquistas' && <ConquistasScreen onOpenCalendar={() => setCalendarOpen(true)} />}
       </View>
 
       <BottomNav active={tab} onChange={setTab} />

@@ -68,3 +68,32 @@ export function monthLabelPt(y, m, lang) {
 export function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
+
+// "Setembro de 2026" — cabeçalho do calendário mensal (ecrã de
+// partilha, 20/09/2026). `month` é 0-based (0 = janeiro), como em Date.
+export function monthLongLabel(year, month, lang) {
+  const locale = LOCALE_MAP[lang] || LOCALE_MAP.pt;
+  return new Date(year, month, 1).toLocaleDateString(locale, { month: 'long', year: 'numeric' });
+}
+
+// Grelha de um mês para o calendário de partilha — semanas começam à
+// segunda-feira (mesma convenção da Semana), células antes do dia 1 e
+// depois do último dia ficam `null` para preencher a grelha 7 colunas.
+// Devolve um array de semanas, cada uma um array de 7 { date, day } | null.
+export function monthGrid(year, month) {
+  const first = new Date(year, month, 1);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstWeekday = (first.getDay() + 6) % 7; // 0 = segunda
+
+  const cells = [];
+  for (let i = 0; i < firstWeekday; i++) cells.push(null);
+  for (let day = 1; day <= daysInMonth; day++) {
+    const d = new Date(year, month, day);
+    cells.push({ date: fmt(d), day });
+  }
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const weeks = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+  return weeks;
+}

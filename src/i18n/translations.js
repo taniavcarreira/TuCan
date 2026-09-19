@@ -321,6 +321,22 @@ const ENTRIES = [
   ['conquistas.noBadgesThatDay', 'Sem badges neste dia.', 'No badges that day.', 'Aucun badge ce jour-là.'],
   ['conquistas.soundLabel', 'Som dos badges', 'Badge sound', 'Son des badges'],
   ['conquistas.soundHint', 'O toque curto que ouves sempre que ganhas um badge. Podes desligá-lo a qualquer momento.', 'The short chime you hear whenever you earn a badge. You can turn it off any time.', 'Le petit son que tu entends à chaque badge gagné. Tu peux le désactiver à tout moment.'],
+  ['conquistas.openCalendar', 'Ver calendário mensal', 'View monthly calendar', 'Voir le calendrier mensuel'],
+
+  // ---------- calendário de partilha (20/09/2026) ----------
+  ['calendar.title', 'Calendário', 'Calendar', 'Calendrier'],
+  ['calendar.legendFull', 'Todas as âncoras', 'All anchors', 'Toutes les ancres'],
+  ['calendar.legendPartial', 'Registaste', 'You logged', 'Tu as enregistré'],
+  ['calendar.legendNone', 'Sem registo', 'No log', 'Aucun enregistrement'],
+  ['calendar.statCrossing', 'Travessia atual', 'Current crossing', 'Traversée actuelle'],
+  ['calendar.statCrossingDays', '{n} dias', '{n} days', '{n} jours'],
+  ['calendar.statLogged', 'Registados este mês', 'Logged this month', 'Enregistrés ce mois-ci'],
+  ['calendar.statBadges', 'Badges este mês', 'Badges this month', 'Badges ce mois-ci'],
+  ['calendar.shareButton', 'Partilhar', 'Share', 'Partager'],
+  ['calendar.shareTitle', 'O meu progresso na TuCAN!', 'My progress on TuCAN!', 'Ma progression sur TuCAN!'],
+  ['calendar.shareDownloaded', 'A imagem foi descarregada — anexa-a à conversa que preferires (WhatsApp, email, ou outra).', 'The image was downloaded — attach it to whichever chat you like (WhatsApp, email, or another).', "L'image a été téléchargée — joins-la à la conversation de ton choix (WhatsApp, e-mail, ou autre)."],
+  ['calendar.shareError', 'Não foi possível preparar a imagem. Tenta outra vez.', 'Could not prepare the image. Try again.', "Impossible de préparer l'image. Réessaie."],
+  ['calendar.preparingShare', 'A preparar...', 'Preparing...', 'Préparation...'],
 
   // ---------- aviso de navegador incorporado ----------
   ['inapp.title', 'Estás a abrir isto dentro do {name}', "You're opening this inside {name}", 'Tu ouvres ceci dans {name}'],
