@@ -19,10 +19,12 @@ import PermissionsScreen from './src/screens/PermissionsScreen';
 import HojeScreen from './src/screens/HojeScreen';
 import SemanaScreen from './src/screens/SemanaScreen';
 import TreinoScreen from './src/screens/TreinoScreen';
+import ConquistasScreen from './src/screens/ConquistasScreen';
 import ConfigScreen from './src/screens/ConfigScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import BottomNav from './src/components/BottomNav';
 import Confetti from './src/components/Confetti';
+import BadgeCelebration from './src/components/BadgeCelebration';
 import InAppBrowserBanner from './src/components/InAppBrowserBanner';
 import BrandMarkIcon from './src/components/BrandMarkIcon';
 import ConfirmModal from './src/components/ConfirmModal';
@@ -120,7 +122,7 @@ function Root() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [confettiTrigger, setConfettiTrigger] = useState(0);
   const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
-  const { ready, profile } = useData();
+  const { ready, profile, newBadgeEvent, badgeSoundEnabled } = useData();
   const { t } = useLanguage();
   const celebrate = () => setConfettiTrigger(Date.now());
 
@@ -174,6 +176,7 @@ function Root() {
         {tab === 'hoje' && <HojeScreen onCelebrate={celebrate} onOpenConfig={() => setConfigOpen(true)} />}
         {tab === 'semana' && <SemanaScreen />}
         {tab === 'treino' && <TreinoScreen />}
+        {tab === 'conquistas' && <ConquistasScreen />}
       </View>
 
       <BottomNav active={tab} onChange={setTab} />
@@ -182,6 +185,11 @@ function Root() {
           celebration always falls across the whole screen. */}
       <View pointerEvents="none" style={styles.confettiLayer}>
         <Confetti trigger={confettiTrigger} />
+        <BadgeCelebration
+          badge={newBadgeEvent ? { id: newBadgeEvent.badgeId, name: t(`badge.${newBadgeEvent.badgeId}.name`) } : null}
+          trigger={newBadgeEvent?.trigger}
+          muted={newBadgeEvent?.muted || !badgeSoundEnabled}
+        />
       </View>
 
       <ConfirmModal

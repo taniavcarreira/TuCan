@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Switch } from 'react-native';
 import { COLORS, FONTS } from '../theme';
 import { useData } from '../context/DataContext';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -14,7 +14,7 @@ import ConfirmModal from '../components/ConfirmModal';
 const LANGUAGE_NAMES = { pt: 'Português', en: 'English', fr: 'Français' };
 
 export default function ProfileScreen({ onClose }) {
-  const { profile, updateProfile } = useData();
+  const { profile, updateProfile, badgeSoundEnabled, setBadgeSoundEnabled } = useData();
   const { t, language, setLanguage, SUPPORTED_LANGUAGES } = useLanguage();
   const [username, setUsername] = useState(profile.username);
   const [saving, setSaving] = useState(false);
@@ -94,6 +94,17 @@ export default function ProfileScreen({ onClose }) {
         ))}
       </View>
 
+      <Text style={styles.label}>{t('conquistas.soundLabel')}</Text>
+      <View style={styles.soundRow}>
+        <Text style={[styles.hint, { flex: 1, marginBottom: 0 }]}>{t('conquistas.soundHint')}</Text>
+        <Switch
+          value={badgeSoundEnabled}
+          onValueChange={setBadgeSoundEnabled}
+          trackColor={{ false: COLORS.line, true: COLORS.electro }}
+          thumbColor="#fff"
+        />
+      </View>
+
       {!!error && <Text style={styles.error}>{error}</Text>}
       {!!message && <Text style={styles.info}>{message}</Text>}
 
@@ -140,6 +151,7 @@ const styles = StyleSheet.create({
   readOnlyText: { color: COLORS.inkSoft, fontFamily: FONTS.bodyRegular, fontSize: 15 },
 
   hint: { fontSize: 11.5, color: COLORS.inkSoft, lineHeight: 16, marginBottom: 10 },
+  soundRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
 
   langRow: { flexDirection: 'row', gap: 8 },
   langBtn: { flex: 1, paddingVertical: 11, alignItems: 'center', borderRadius: 8, borderWidth: 2, borderColor: COLORS.line, backgroundColor: COLORS.bg },

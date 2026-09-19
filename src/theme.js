@@ -21,6 +21,13 @@ export const COLORS = {
   electro: '#29D3FF',
   agua: '#F3E8AE',
   mostarda: '#E3AC2E',
+  coral: '#E8503A',
+
+  // Azul primário Bauhaus — fecha o trio clássico (vermelho/coral,
+  // amarelo/mostarda, azul) para as fases dos badges (especificação
+  // v2, secção 6, 12/09/2026). Distinto do `electro` (ciano, usado na
+  // navegação) para não confundir os dois vocabulários visuais.
+  azul: '#2A46C4',
 };
 
 // Colors that need dark text on top of them for contrast (light backgrounds).

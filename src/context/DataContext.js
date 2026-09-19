@@ -1,15 +1,37 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../supabaseClient';
 import { isoMonday, fmt } from '../utils/dates';
-import { blankDay, migrateDay, anchorFields } from '../utils/fields';
+import { blankDay, migrateDay, anchorFields, currentScore, maxScore } from '../utils/fields';
 import { getCachedKey, getOrCreateDeviceKey, encryptProfileField, decryptProfileField } from '../utils/profileCrypto';
+import { evaluateBadgesAndCycles, groupEarnedByBadge, isUnique } from '../utils/badges';
 
 const DataContext = createContext(null);
+
+// Preferência de som dos badges (especificação v2, secção 5: "respeitar
+// o modo silêncio e registar uma preferência de som no Perfil" — a
+// hipersensibilidade auditiva é comum em PHDA). Local ao dispositivo,
+// por omissão ligado.
+const BADGE_SOUND_KEY = 'tucan_badge_sound_';
 
 export function DataProvider({ user, children }) {
   const userId = user.id;
   const todayMonday = useRef(isoMonday(new Date())).current;
   const todayIndex = (new Date().getDay() + 6) % 7;
+
+  const [badgeSoundEnabled, setBadgeSoundEnabledState] = useState(true);
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(BADGE_SOUND_KEY + userId);
+        if (raw !== null) setBadgeSoundEnabledState(raw === '1');
+      } catch (e) { /* por omissão fica ligado */ }
+    })();
+  }, [userId]);
+  const setBadgeSoundEnabled = useCallback((value) => {
+    setBadgeSoundEnabledState(value);
+    AsyncStorage.setItem(BADGE_SOUND_KEY + userId, value ? '1' : '0').catch(() => {});
+  }, [userId]);
 
   const [customFields, setCustomFieldsState] = useState([]);
   const [ready, setReady] = useState(false);
@@ -83,6 +105,106 @@ export function DataProvider({ user, children }) {
     if (error) console.error('upsert fields', error);
   }, [customFields, userId, fieldsInitialized]);
 
+  // ---------- badges e travessias (especificação v2, secções 2/3) ----------
+  // A avaliação em si é pura (src/utils/badges.js) — aqui só se busca o
+  // histórico completo, se sincroniza o resultado com `cycles`/`badges`
+  // na BD, e se guarda em estado o que a aba Conquistas precisa de
+  // mostrar. Declarado antes de saveToday/saveWeek abaixo, que chamam
+  // `syncBadgesAndCycles` depois de cada gravação — precisa de existir
+  // primeiro para essas funções o poderem incluir nas suas próprias
+  // dependências do useCallback.
+  const [badgesData, setBadgesData] = useState({ cycles: [], byBadge: {} });
+  const [newBadgeEvent, setNewBadgeEvent] = useState(null); // { badgeId, trigger, muted }
+  const earnedKeysRef = useRef(new Set()); // "badgeId|date" já vistos nesta sessão
+  const seededRef = useRef(false);
+
+  const syncBadgesAndCycles = useCallback(async (opts = {}) => {
+    const { muteDate } = opts; // data (YYYY-MM-DD) cuja celebração deve tocar em silêncio (coincide com Perfect!)
+    const { data: rows, error } = await supabase
+      .from('days')
+      .select('date, custom, mood, therapy, perfect, anchor_ids, first_logged_at')
+      .eq('user_id', userId);
+    if (error) { console.error('syncBadgesAndCycles: loadAllDays', error); return; }
+
+    const { cycles, earned } = evaluateBadgesAndCycles(rows || [], customFields);
+
+    // 1. Upsert das travessias (para obter o cycle_id real da BD — o id
+    //    `cycle-YYYY-MM-DD` usado internamente por badges.js é só para
+    //    agrupar durante o cálculo, nunca é gravado).
+    const cycleRows = cycles.map((c, i) => ({
+      user_id: userId,
+      number: c.number,
+      started_on: c.startedOn,
+      ended_on: i < cycles.length - 1 ? c.lastDate : null,
+      days_logged: c.daysLogged,
+      closed_at: i < cycles.length - 1 ? new Date().toISOString() : null,
+    }));
+    let dbCycles = [];
+    if (cycleRows.length) {
+      const { data, error: cErr } = await supabase
+        .from('cycles')
+        .upsert(cycleRows, { onConflict: 'user_id,number' })
+        .select('id, number');
+      if (cErr) console.error('syncBadgesAndCycles: upsert cycles', cErr);
+      dbCycles = data || [];
+    }
+    const cycleIdByNumber = {};
+    dbCycles.forEach((c) => { cycleIdByNumber[c.number] = c.id; });
+
+    // 2. Únicos só podem ser ganhos uma vez por travessia — filtra
+    //    ocorrências repetidas do mesmo único dentro do mesmo ciclo
+    //    antes de gravar (a avaliação já só emite um por dia, mas um
+    //    único pode, em teoria, voltar a bater a condição mais tarde
+    //    no mesmo ciclo se os dados históricos forem reprocessados).
+    const seenUniquePerCycle = new Set();
+    const badgeRows = [];
+    earned.forEach((e) => {
+      const key = `${e.badgeId}|${e.cycleNumber}`;
+      if (isUnique(e.badgeId)) {
+        if (seenUniquePerCycle.has(key)) return;
+        seenUniquePerCycle.add(key);
+      }
+      badgeRows.push({
+        user_id: userId,
+        badge_id: e.badgeId,
+        earned_at: e.date,
+        cycle_id: cycleIdByNumber[e.cycleNumber] || null,
+      });
+    });
+
+    if (badgeRows.length) {
+      const { error: bErr } = await supabase
+        .from('badges')
+        .upsert(badgeRows, { onConflict: 'user_id,badge_id,earned_at', ignoreDuplicates: true });
+      if (bErr) console.error('syncBadgesAndCycles: upsert badges', bErr);
+    }
+
+    // 3. Estado local para a aba Conquistas.
+    setBadgesData({ cycles, byBadge: groupEarnedByBadge(earned) });
+
+    // 4. Detetar o que é novo nesta sessão, para a celebração (secção
+    //    5). Na primeira avaliação depois de abrir a app (`seededRef`),
+    //    só regista o que já existe sem celebrar nada — senão o
+    //    histórico inteiro "explodiria" de medalhas ao entrar na app.
+    const seenBefore = seededRef.current;
+    let freshest = null;
+    earned.forEach((e) => {
+      const k = `${e.badgeId}|${e.date}`;
+      if (!earnedKeysRef.current.has(k)) {
+        earnedKeysRef.current.add(k);
+        if (seenBefore) freshest = e;
+      }
+    });
+    seededRef.current = true;
+    if (freshest) {
+      setNewBadgeEvent({
+        badgeId: freshest.badgeId,
+        trigger: Date.now(),
+        muted: !!muteDate && freshest.date === muteDate,
+      });
+    }
+  }, [userId, customFields]);
+
   // ---------- day data ----------
   function rowToDay(row) {
     const day = row
@@ -143,7 +265,8 @@ export function DataProvider({ user, children }) {
         saveDayRemote(dateForIndex(currentMonday, i), nextWeekData.days[i])
       )
     );
-  }, [currentMonday, todayMonday, saveDayRemote]);
+    syncBadgesAndCycles();
+  }, [currentMonday, todayMonday, saveDayRemote, syncBadgesAndCycles]);
 
   const loadToday = useCallback(async () => {
     const wd = await fetchWeek(todayMonday);
@@ -151,12 +274,25 @@ export function DataProvider({ user, children }) {
   }, [fetchWeek, todayMonday]);
 
   const saveToday = useCallback(async (nextTodayWeek) => {
+    // O som/confetti do Perfect! (HojeScreen#onCelebrate) toca sempre
+    // que o preenchimento das âncoras acaba de chegar ao máximo — não
+    // só quando se carrega no botão "Perfect!". Um badge que calhe no
+    // mesmo instante fica em silêncio (secção 2: "só toca o som do
+    // Perfect!, a medalha aparece em silêncio").
+    const prevDay = todayWeek.days[todayIndex];
+    const max = maxScore(customFields);
+    const wasMax = max > 0 && currentScore(prevDay || blankDay(), customFields) === max;
+    const nowMax = max > 0 && currentScore(nextTodayWeek.days[todayIndex], customFields) === max;
+    const perfectSoundNow = nowMax && !wasMax;
+    const dateStr = dateForIndex(todayMonday, todayIndex);
+
     setTodayWeek(nextTodayWeek); // optimistic
     if (fmt(currentMonday) === fmt(todayMonday)) {
       setWeekData(nextTodayWeek);
     }
-    await saveDayRemote(dateForIndex(todayMonday, todayIndex), nextTodayWeek.days[todayIndex]);
-  }, [currentMonday, todayMonday, todayIndex, saveDayRemote]);
+    await saveDayRemote(dateStr, nextTodayWeek.days[todayIndex]);
+    syncBadgesAndCycles({ muteDate: perfectSoundNow ? dateStr : null });
+  }, [currentMonday, todayMonday, todayIndex, todayWeek, customFields, saveDayRemote, syncBadgesAndCycles]);
 
   const goToWeek = useCallback(async (monday) => {
     setCurrentMonday(monday);
@@ -276,6 +412,15 @@ export function DataProvider({ user, children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
+  // Primeira avaliação de badges/travessias assim que os campos e o
+  // histórico estão prontos (sem esperar por uma gravação nova) — é o
+  // que dá conteúdo à aba Conquistas logo na primeira visita.
+  useEffect(() => {
+    if (!ready) return;
+    syncBadgesAndCycles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
+
   const value = useMemo(() => ({
     ready,
     todayMonday, todayIndex,
@@ -284,11 +429,15 @@ export function DataProvider({ user, children }) {
     todayWeek, saveToday, loadToday,
     sessions, persistSessions, loadSessions,
     profile, updateProfile, loadTrendDays,
+    badgesData, newBadgeEvent, syncBadgesAndCycles,
+    badgeSoundEnabled, setBadgeSoundEnabled,
   }), [
     ready, customFields, currentMonday, weekData, todayWeek, sessions,
     persistCustomFields, loadCustomFields, fieldsInitialized, goToWeek, saveWeek, loadSemana,
     saveToday, loadToday, persistSessions, loadSessions, todayMonday,
     profile, updateProfile, loadTrendDays,
+    badgesData, newBadgeEvent, syncBadgesAndCycles,
+    badgeSoundEnabled, setBadgeSoundEnabled,
   ]);
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

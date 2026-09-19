@@ -27,11 +27,22 @@ function TreinoIcon({ color }) {
     </Svg>
   );
 }
+// Medalha — aba Conquistas (especificação v2, secção 4, 12/09/2026).
+function ConquistasIcon({ color }) {
+  return (
+    <Svg width={21} height={21} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.4}>
+      <Circle cx="12" cy="14" r="6" />
+      <Path d="M9 8.5L6 3M15 8.5L18 3" strokeLinecap="round" />
+      <Path d="M10 14l1.4 1.4L14.5 12" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
 
 const TAB_KEYS = [
   { key: 'hoje', tKey: 'nav.hoje', Icon: HojeIcon },
   { key: 'semana', tKey: 'nav.semana', Icon: SemanaIcon },
   { key: 'treino', tKey: 'nav.treino', Icon: TreinoIcon },
+  { key: 'conquistas', tKey: 'nav.conquistas', Icon: ConquistasIcon },
 ];
 
 export default function BottomNav({ active, onChange }) {
@@ -60,7 +71,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.card, borderTopWidth: 2, borderTopColor: COLORS.line,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around',
   },
-  btn: { alignItems: 'center', paddingHorizontal: 18, paddingVertical: 6, gap: 4 },
-  label: { fontFamily: FONTS.bodyBold, fontSize: 10.5 },
+  btn: { flex: 1, alignItems: 'center', paddingHorizontal: 6, paddingVertical: 6, gap: 4 },
+  label: { fontFamily: FONTS.bodyBold, fontSize: 9.5 },
   dot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: COLORS.electro, marginTop: 1 },
 });

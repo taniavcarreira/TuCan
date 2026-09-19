@@ -46,6 +46,16 @@ export function fmtShort(d, lang) {
   return d.toLocaleDateString(locale, { day: '2-digit', month: 'short' });
 }
 
+// "12 de setembro" — usado para identificar travessias na interface
+// (especificação v2, secção 3: nunca mostrar o número/id internos,
+// só a data, por extenso). Aceita tanto um Date como uma string
+// 'YYYY-MM-DD'.
+export function fmtLongDate(d, lang) {
+  const date = typeof d === 'string' ? new Date(d + 'T00:00:00') : d;
+  const locale = LOCALE_MAP[lang] || LOCALE_MAP.pt;
+  return date.toLocaleDateString(locale, { day: 'numeric', month: 'long' });
+}
+
 export function weekKey(monday) {
   return 'week:' + fmt(monday);
 }
