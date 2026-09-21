@@ -129,6 +129,24 @@ function Root() {
   const { t } = useLanguage();
   const celebrate = () => setConfettiTrigger(Date.now());
 
+  // Bug reportado 21/09/2026: o mesmo badge (medalha + som) podia
+  // aparecer em qualquer aba — Semana, Treino, Conquistas — não só em
+  // Hoje, porque `newBadgeEvent` (do contexto) muda sempre que uma
+  // gravação destrava um badge, seja qual for a aba aberta nesse
+  // momento (ex.: corrigir um dia em atraso na Semana). `celebration`
+  // é o "último evento já mostrado": só copia `newBadgeEvent` quando
+  // (a) a pessoa está em Hoje e (b) é mesmo um evento novo, ainda por
+  // mostrar. Se o badge for ganho fora de Hoje, fica à espera — assim
+  // que a pessoa voltar a Hoje, celebra nessa altura, uma única vez
+  // (nunca some, nunca repete), em vez de saltar por cima de outro ecrã.
+  const [celebration, setCelebration] = useState(null);
+  useEffect(() => {
+    if (tab === 'hoje' && newBadgeEvent && newBadgeEvent.trigger !== celebration?.trigger) {
+      setCelebration(newBadgeEvent);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, newBadgeEvent]);
+
   // O aviso de gravação por confirmar (SaveErrorBanner) é renderizado
   // uma única vez, fora de todos os ramos abaixo, para se manter
   // visível esteja a pessoa onde estiver (Hoje/Semana/Config/Perfil/
@@ -217,9 +235,9 @@ function Root() {
       <View pointerEvents="none" style={styles.confettiLayer}>
         <Confetti trigger={confettiTrigger} />
         <BadgeCelebration
-          badge={newBadgeEvent ? { id: newBadgeEvent.badgeId, name: t(`badge.${newBadgeEvent.badgeId}.name`) } : null}
-          trigger={newBadgeEvent?.trigger}
-          muted={newBadgeEvent?.muted || !badgeSoundEnabled}
+          badge={celebration ? { id: celebration.badgeId, name: t(`badge.${celebration.badgeId}.name`) } : null}
+          trigger={celebration?.trigger}
+          muted={celebration?.muted || !badgeSoundEnabled}
         />
       </View>
 
