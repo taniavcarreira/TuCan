@@ -1,0 +1,696 @@
+From 9dbd2264c0608d086ccb96bd52b353e780cf5ca5 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 17 Sep 2026 16:47:47 +0000
+Subject: [PATCH 1/7] =?UTF-8?q?Realinha=20o=20workspace=20cloud=20com=20or?=
+ =?UTF-8?q?igin/main=20e=20mant=C3=A9m=20o=20doc=20de=20contexto=20local?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01MVcQo6j1LDjyQU3oxSNbxF
+---
+ claude/vasy-app-contexto.md | 671 ++++++++++++++++++++++++++++++++++++
+ 1 file changed, 671 insertions(+)
+ create mode 100644 claude/vasy-app-contexto.md
+
+diff --git a/claude/vasy-app-contexto.md b/claude/vasy-app-contexto.md
+new file mode 100644
+index 0000000..12c215b
+--- /dev/null
++++ b/claude/vasy-app-contexto.md
+@@ -0,0 +1,671 @@
++# TuCAN! (antes "Vas-Y!") — contexto do projeto (app React Native/Expo)
++
++## O que é
++App pessoal de tracking de hábitos/rotina, agora chamada **"TuCAN!"** (nome visível mudado de "Vas-Y!" a 31/08/2026 — ver secção própria abaixo), construída em **Expo SDK 54 / React Native 0.81 / React 19**, ligada ao **Supabase** (auth + Postgres com RLS). Nasceu de uma versão web anterior (HTML/CSS/JS em artifact) que foi convertida para app nativa.
++
++Projeto sincronizado com o computador da Tania em:
++`C:\\Users\\tania\\Documents\\Projectos\\VasYApp\\vasy-app`
++(pasta ligada a esta sessão via a ponte de dispositivo — device "tvieiray"). Git local também inicializado no workspace cloud para acompanhar as alterações (mas nunca consegue fazer `push` — ver limitação abaixo).
++
++**Antes de qualquer sessão futura sobrescrever `package.json`/`app.json`, confirma sempre a versão atual no computador dela primeiro** (device_list_dir + stage + Read) — ela já atualizou o SDK uma vez sem eu saber (de 51 para 54), e costuma correr `npm install` sozinha depois de cada sync (mas não é imediato — confirmar antes de assumir que já o fez).
++
++**Antes de sobrescrever qualquer ficheiro no sync**, corre sempre `device_list_dir` para comparar o `mtimeMs` com o que guardaste da última vez — já aconteceu um `device_commit_files` ser rejeitado por "device file changed since stage" porque o mtime guardado estava desatualizado (não era uma edição real dela, só um sync meu anterior que eu não tinha atualizado); nesse caso `device_stage_files` + `diff` confirma rapidamente se é conflito real ou só mtime desatualizado.
++
++## Correções/otimizações do focus group — 11/09/2026 (9 itens)
++A Tania trouxe feedback de um focus group com 9 pedidos numerados, verbatim. **Sessão sem o computador dela ligado à ponte de dispositivo** — todo o trabalho ficou só no workspace cloud, commitado localmente, e entregue como um `.zip` (ficheiros com a mesma estrutura de pastas do projeto) para ela copiar manualmente para a pasta local antes de correr `npm install` + `git add -A && git commit && git push`. Ver "⚠️ Ações pendentes da Tania" abaixo para os comandos exatos.
++
++Antes de implementar, usei `AskUserQuestion` para resolver ambiguidades em 4 dos 9 itens — respostas da Tania integradas nas decisões abaixo.
++
++1. **Primeira visita à aba Hoje (placeholders)** — `DataContext.js`'s `loadCustomFields()` deixou de auto-inserir 5 campos-modelo na BD sempre que encontrava zero campos (bug que também causava o item 6, ver abaixo). Nova flag `fields_initialized` em `user_metadata` (Supabase Auth), gravada só quando `persistCustomFields` é chamada pela primeira vez a sério (mesmo que para deixar a lista vazia). Enquanto `fieldsInitialized` for `false`, `HojeScreen.js` mostra 5 sugestões a picotado (Leitura, Meditação, Exercício, Água, Sono — `suggestedFields(t)` em `src/utils/fields.js`) em vez da grelha vazia; tocar em qualquer uma chama `onOpenConfig()` (nova prop, threaded de `App.js`) e abre Configurações.
++2. **Confirmação ao terminar sessão** — novo componente reutilizável `src/components/ConfirmModal.js` (Modal nativo do RN, título + botões Cancelar/Confirmar, variante `danger`). Usado nos dois sítios que chamavam `supabase.auth.signOut()` diretamente: o botão "⎋" da topbar (`App.js`) e "Terminar sessão" (`ProfileScreen.js`).
++3. **Username em vez de nome+apelido** — `DataContext.js`: `first_name_enc`/`last_name_enc` substituídos por um único `username_enc`, com a mesma arquitetura de encriptação client-side já existente (`profileCrypto.js` — chave nunca sai do dispositivo). Sem verificação de unicidade (confirmado com a Tania — pode repetir-se entre utilizadores). `ProfileScreen.js` passou a ter um único campo "Username". Os campos antigos `first_name(_enc)`/`last_name(_enc)` ficam órfãos em contas antigas — inofensivo, nunca mais lidos nem escritos.
++4. **Ecrã de permissões pós-login** — novo `src/screens/PermissionsScreen.js`, puramente informativo (Tania escolheu "ecrã informativo, sem toggles" — a app não acede a nada além do email, por isso não há nada para ligar/desligar). Mostra-se uma única vez por conta neste dispositivo, controlado por uma flag local (`AsyncStorage`, `tucan_permissions_seen_<userId>`) e um novo ramo de estado em `App.js` (`permissionsSeen`).
++5. **Internacionalização (PT/EN/FR)** — sistema leve e próprio (sem biblioteca pesada): `src/i18n/translations.js` (dicionário plano `[chave, pt, en, fr]`, ~200 chaves, cobre literalmente toda a app) + `src/i18n/LanguageContext.js` (`LanguageProvider`/`useLanguage()`, deteção automática do idioma do dispositivo via `expo-localization` — nova dependência — na primeira utilização, com escolha manual persistida em `AsyncStorage` a sobrepor-se depois). Tania escolheu "tudo traduzido + deteção automática" (sem ecrã de escolha dedicado no arranque) com troca manual disponível no Perfil (`ProfileScreen.js`, PT/EN/FR mostrados pelo nome nativo de cada idioma). `src/utils/dates.js` ganhou `DAYS_FOR(lang)`/`localeFor(lang)` e `fmtShort`/`monthLabelPt` passaram a aceitar `lang`. **Todos os ecrãs e componentes com texto visível foram passados por `t()`** — `App.js`, `AuthScreen.js`, `OnboardingScreen.js`, `ResetPasswordScreen.js`, `HojeScreen.js`, `SemanaScreen.js`, `TreinoScreen.js`, `ConfigScreen.js`, `ProfileScreen.js`, `BottomNav.js`, `InAppBrowserBanner.js`, `TrendAccordion.js`. **Regra embutida no dicionário**: nomes de campos escritos pelo próprio utilizador (em Configurações) nunca passam por `t()` — só o texto fixo da interface é traduzido.
++6. **Configurações não se perdem entre sessões** — mesma causa raiz e mesma correção do item 1 (`fields_initialized` — ver acima): antes, qualquer login com zero campos (incluindo depois de os apagar todos de propósito) fazia `loadCustomFields()` reinserir os 5 campos-modelo sozinha. Agora nunca escreve nada na BD ao carregar, só reflete o que lá está — um utilizador que esvazia a lista de propósito vê mesmo uma lista vazia (com o texto normal de "sem campos configurados", `hoje.emptyNote`), não os placeholders nem os modelos antigos.
++7. **GIF do Perfect!** — **feito em 12/09/2026** (a Tania enviou o GIF numa sessão seguinte, depois de os outros 8 itens já estarem implementados — ver secção própria "GIF do Perfect! (item 7)" mais abaixo com todo o detalhe técnico).
++8. **Perfect! só ativa com tudo cumprido** — `HojeScreen.js`: `toggleFixed('perfect')` passou a bloquear a *ativação* (não a desativação) quando `!isWin` — `isWin` já era `max > 0 && score === max`, que já implicava exatamente "todos os campos de contagem no target + todos os booleanos marcados + ProudOfMe marcado" (a opção mais estrita que a Tania escolheu, "todos os campos no objetivo definido"). O botão fica visualmente esbatido (`opacity 0.4`) enquanto desativado.
++9. **Energia em emojis** — o `TextInput` numérico livre (1-5) foi substituído por uma escala de 5 emojis (😞😕😐🙂😄, `energiaOptions(t)` em `src/utils/fields.js`) tanto em `HojeScreen.js` (5 botões lado a lado) como em `SemanaScreen.js` (célula compacta da grelha semanal — aqui manteve-se a interação de "tocar para avançar" já usada nos campos de contagem dessa mesma grelha, por falta de espaço para 5 botões numa coluna estreita; cada toque avança um nível, do 5 volta ao 0/vazio).
++
++**Verificação feita nesta sessão** (sem credenciais reais da Tania — não me liguei ao Supabase real dela): `npx expo export -p web` sem erros; `grep`/script Python confirmou que todas as chamadas `t('...')` na app apontam para chaves que existem mesmo no dicionário (zero chaves em falta); build servido localmente e verificado com Playwright em 3 idiomas (deteção automática via `locale` do browser: `en-US` → inglês, `pt-PT` → português, `fr-FR` → francês) percorrendo as 5 páginas do onboarding + ecrã de login, sem nenhum erro de consola. **Os ecrãs que só aparecem depois de login real (Hoje/Semana/Config/Perfil/Permissões, e o comportamento funcional dos itens 1/2/3/4/6/8/9) não foram verificados com uma sessão Supabase real nesta sessão** — ficam para a Tania confirmar depois de sincronizar e testar no dispositivo dela (ver pendências abaixo).
++
++### GIF do Perfect! (item 7) — 12/09/2026
++A Tania enviou o GIF (tucano a pousar sobre um círculo verde-água, já com um padrão de folhas tropicais embutido no próprio fundo) numa sessão seguinte, sem o computador dela ligado à ponte de dispositivo outra vez — mesmo fluxo de entrega em `.zip` da sessão anterior.
++
++- **Conversão GIF → WebP**: `ffmpeg -i <gif> -vcodec libwebp_anim -pix_fmt yuva420p -lossless 1 -loop 0 -an assets/images/perfect-toucan.webp`. Lossless (não lossy) porque é ilustração de cores lisas — evita halos/banding à volta do bico e do círculo que um WebP lossy com alfa costuma introduzir. Resultado: 520×520, 39 frames, RGBA, loop infinito, ~708 KB (confirmado a abrir com Pillow — `Image.open(...).n_frames`). O GIF original já não é necessário e não foi commitado (só o `.webp`).
++- **`RingChart.js` reescrito no ramo `if (perfect)`**: a antiga composição de duas peças — `assets/images/toucan-leaves-bg.png` (fundo) + `<ToucanAvatar>` (SVG do tucano, animado a "voar" para um poleiro `Branch.js`) — foi substituída por uma única `<Image>` (agora do pacote **`expo-image`**, não do RN) a mostrar `perfect-toucan.webp`, dentro do mesmo `Animated.View` de entrada (voo + mola) que já existia, para manter a sensação de "chegada" ao ecrã. `toucan-leaves-bg.png` foi apagado do repositório (só era usado ali). A prop `avatar` deixou de ser lida por `RingChart` (o componente já não decide a aparência por causa dela) — removida também de `HojeScreen.js` (deixou de passar `avatar={DEFAULT_AVATAR}`), mas `ToucanAvatar.js`/`avatars.js`/`Branch.js` continuam intactos e ainda usados noutros sítios (`OnboardingScreen.js`, `ProfileScreen.js` mostram o tucano estático com o `DEFAULT_AVATAR`) — **`Branch.js` ficou órfão** (só era importado pelo `RingChart.js`), não apagado por precaução, mas pode ser removido com segurança se alguém reparar.
++- **Nova dependência `expo-image` (`~3.0.11`, a versão que o próprio SDK 54 já traz "bundled")**: o `<Image>` nativo do React Native só mostra o primeiro frame de GIFs/WebPs animados no iOS (limitação conhecida, documentada pela própria Expo) — `expo-image` resolve isto de forma fiável nas três plataformas (web, iOS, Android) com a mesma API. `npx expo install expo-image` falhou por não haver rede até `api.expo.dev` neste sandbox (só os registries npm estão na allowlist) — instalado à mão com `npm install expo-image@~3.0.11`, depois de confirmar a versão certa em `node_modules/expo/bundledNativeModules.json`.
++- **Verificado com Playwright** de duas formas: (1) uma página HTML isolada só com `<img src="...perfect-toucan.webp">` servida a partir do build exportado, para confirmar que o browser decodifica e anima um WebP com alfa (duas capturas ~1.5s à parte mostram frames diferentes — voo vs. pousado); (2) a técnica de sessão Supabase mockada (`localStorage` com a chave `sb-jjlpfjegikxoholzwvfq-auth-token` — **atenção**: o valor tem de ser o próprio objeto `Session` (`access_token`/`refresh_token`/`expires_at`/`user` no topo), **não** embrulhado em `{currentSession, expiresAt}` como um registo anterior desta secção sugeria — confirmado a ler `_isValidSession`/`_recoverAndRefresh` no código-fonte do `@supabase/auth-js` instalado) + `page.route()` a mockar `/rest/v1/fields`, `/rest/v1/days` (um dia já com `perfect: true`) e `/rest/v1/sessions`, contra o build web real servido localmente. Capturas confirmam a animação a tocar dentro do ecrã Hoje real (card "SENTE A VITÓRIA!", tamanho e enquadramento corretos, sem esticar nem cortar o círculo) e **zero erros de consola**. Ficam por confirmar no dispositivo real dela: comportamento em iOS/Android nativo (não testável neste sandbox) e o tamanho do bundle (o `.webp` de 708 KB é maior do que o `.png` que substituiu, ~383 KB — aceitável, mas vale a pena a Tania confirmar que o tempo de carregamento continua bom no telemóvel).
++
++## Ícone de ecrã inicial (PWA) — o tucano do "Perfect!" como atalho no telemóvel — 31/08/2026
++A Tania perguntou, em paralelo com a encriptação abaixo, se dava para pôr a imagem do tucano como ícone quando alguém adiciona a versão web da TuCAN! ao ecrã inicial do telemóvel. Confirmado que **não dava antes** — o export web da Expo (bundler Metro) não gerava nenhum `apple-touch-icon` nem `manifest.json`, só o `favicon.ico` normal (confirmado a inspecionar o `dist/index.html` gerado e o template HTML em bruto do próprio `@expo/cli`).
++
++**Solução, sem tocar em nada do bundler:**
++- **`public/` (nova pasta, na raiz do projeto)** — o export web da Expo copia este conteúdo tal e qual para `dist/` (confirmado no código-fonte do `@expo/cli`, `publicFolder.js`), e se existir um `public/index.html`, esse ficheiro é usado como template em vez do template por omissão (`webTemplate.js` do `@expo/cli` — `getTemplateIndexHtmlAsync` procura primeiro em `public/index.html`). Passou a conter:
++  - `index.html` — cópia do template por omissão da Expo, com `<link rel="apple-touch-icon" href="apple-touch-icon.png">`, `<link rel="manifest" href="manifest.json">` e `<meta name="theme-color" content="#121417">` acrescentados à mão (caminhos relativos, para funcionar tanto em `localhost` como sob `/TuCan/` no GitHub Pages).
++  - `manifest.json` — nome "TuCAN!", `background_color`/`theme_color` = `COLORS.bg` (`#121417`), ícones 192×192 e 512×512.
++  - `apple-touch-icon.png` (180×180), `icon-192.png`, `icon-512.png` — o mascote `ToucanAvatar` (corpo inteiro + cauda, cores do `DEFAULT_AVATAR`, sem pernas/sem chapéu) sobre fundo `COLORS.bg`, com uma margem de 10% à volta.
++- **`scripts/make_home_icons.py`** (novo) — gera os 3 PNGs acima via Playwright (renderiza o mesmo SVG do `ToucanAvatar.js`, copiado à mão para este script, num `.html` com o fundo `COLORS.bg`, tira screenshot). Corre-se com `python3 scripts/make_home_icons.py` sempre que se quiser regenerar os ícones (ex.: se a paleta do avatar mudar).
++- **Verificado**: rebuild completo (`npx expo export -p web`) confirma que `manifest.json`/`apple-touch-icon.png`/`icon-192.png`/`icon-512.png` chegam a `dist/` tal como estão em `public/`, e que o `dist/index.html` final mantém as tags novas **e** continua a receber a tag do favicon normal (injetada à parte pelo Expo) — nada partiu. Testado a servir o build e abrir com Playwright: a app carrega normalmente (ecrã de onboarding igual a sempre).
++
++## Privacidade dos dados dos utilizadores — encriptação de nome/apelido no dispositivo — 31/08/2026
++A Tania quer partilhar a versão web da app com a sua psicóloga, que por sua vez a partilharia com pacientes dela — e pediu uma forma de garantir que **nem ela própria, como developer**, consiga ver a lista de utilizadores/emails a partir do painel da Supabase, para poder assegurar aos pacientes que os dados ficam anónimos perante terceiros (incluindo perante ela).
++
++**⚠️ Nota importante (11/09/2026): "nome/apelido" tornou-se um único campo "username" — ver secção "Correções/otimizações do focus group" acima, item 3. A arquitetura de encriptação descrita abaixo mantém-se inalterada, só o número/nome dos campos cifrados mudou (`username_enc` em vez de `first_name_enc`/`last_name_enc`).**
++
++**Esclarecimentos importantes dados à Tania antes de decidir (para não ficar com uma falsa sensação de segurança):**
++- **RLS (Row Level Security) não protege contra o dono do projeto** — o Dashboard da Supabase (Table Editor, SQL Editor, Authentication → Users) usa sempre privilégios de administrador que ignoram RLS por completo. RLS só limita o que a própria app consegue pedir com a chave pública (`anon key`); não esconde nada de quem tem acesso ao painel.
++- **O email da conta (`auth.users.email`) fica sempre visível ao dono/admin do projeto Supabase enquanto se usar a Authentication nativa da Supabase** — é uma limitação estrutural, não uma escolha de configuração: os fluxos de "esqueci-me da password", confirmação de registo, magic link, etc., precisam que o backend da própria Supabase tenha o email em texto simples para os enviar, e a lista de Users do painel lê diretamente dessa tabela.
++- **Argumento de fundo, explicado à Tania**: quem controla 100% do código e da infraestrutura de uma app nunca consegue dar uma garantia técnica *comprovável* de que nunca vai aceder aos dados — podia sempre alterar o próprio código para capturar algo antes de qualquer encriptação. Uma garantia estrutural real só existe delegando uma parte do sistema (ex.: a conta/email) a um terceiro genuinamente independente (outro projeto Supabase, gerido por outra pessoa) — o que a Tania **explicitamente não quer**, porque pretende manter a gestão técnica da app inteiramente nas suas próprias mãos.
++
++**Decisão final da Tania, depois de percorrer as opções** (a app não lida com dados sensíveis dos utilizadores — a preocupação é só evitar que o email sirva para montar listas de contactos): **encriptar nome/apelido (agora username) no dispositivo, aceitar que o email fica visível para ela como dona do projeto** (a cobrir com um compromisso escrito de privacidade para a psicóloga/pacientes, não uma garantia técnica).
++
++**Implementação:**
++- **`src/utils/profileCrypto.js`** (novo) — usa `crypto-js` (`crypto-js@4`, nova dependência, sem conflitos, `npm audit` confirma que não introduz vulnerabilidades novas). Deriva uma chave por conta:
++  - **Contas com password**: `PBKDF2(password, 'tucan:' + userId, {iterations: 50000})` — determinística, por isso a mesma password no telemóvel e no browser regenera sempre a mesma chave (permite decifrar em qualquer dispositivo, sem nunca transmitir a chave).
++  - **Contas só-Google** (sem password disponível no cliente): chave aleatória de 256 bits gerada no primeiro uso, guardada só nesse dispositivo (via `AsyncStorage`, chave `tucan_profile_key_<userId>`) — **não sincroniza entre dispositivos**.
++  - A própria chave **nunca é enviada à Supabase** — só o campo cifrado (AES) é que vai para `user_metadata` (`username_enc`, desde 11/09/2026).
++- **`src/context/DataContext.js`** — `profile.username` vem de `decryptProfileField(user_metadata.username_enc, chave)`; `updateProfile` cifra `username` antes de o enviar. **`ProfileScreen.js` não precisa de saber nada da cifra/decifra** — chama só `updateProfile({username})` e lê `profile.username`.
++- **`src/screens/AuthScreen.js`** e **`src/screens/ResetPasswordScreen.js`** — depois de login/registo/reposição de password com sucesso, derivam a chave a partir da password recém-usada e guardam-na em cache no dispositivo.
++- **Trade-off aceite pela Tania**: ao repor a password ("esqueci-me da password"), a chave muda — o username antigo fica ilegível (para todos, incluindo a própria pessoa) e tem de ser escrito de novo. Aceitável por ser um dado cosmético, não relacionado com o registo de hábitos em si.
++- **Verificado de ponta a ponta a 31/08/2026** com Playwright contra o build real (sessão + respostas da Supabase mockadas via `page.route`, sem tocar no projeto Supabase real): escrever Nome "Ana"/Apelido "Silva" (esquema anterior ao username único) e Guardar confirma que o pedido `PUT .../auth/v1/user` enviado leva só os campos `_enc` em cifra (nunca o texto original) com os campos em claro a `null`; "recarregar" a app no mesmo dispositivo (mesma chave em cache) mostra os campos corretamente decifrados; "recarregar" com uma chave de dispositivo diferente mostra os campos vazios, sem nenhum erro de consola — confirma o trade-off aceite a funcionar tal como desenhado. **Este roundtrip específico não foi re-verificado com o novo campo username único (11/09/2026)** — a mecânica é idêntica, só o nome do campo mudou, mas fica por confirmar num teste real.
++
++## Ajustes ao BrandMarkIcon — rotação por local de uso — 31/08/2026
++Depois da secção "Marca" abaixo (favicon + ícone de "a minha conta"), a Tania pediu mais dois usos do mesmo `BrandMarkIcon`, com ajustes finos até ficar como ela queria:
++- O componente passou a aceitar uma prop `rotate` (graus, por omissão 180) em vez de um booleano `flip` — para esta forma do pin (simétrica esquerda-direita), um flip vertical (`scaleY:-1`) e uma rotação de 180° dão exatamente o mesmo resultado visual; expliquei isto à Tania quando ela reportou "o ícone continua na mesma posição" depois do primeiro pedido de flip, e gerei uma comparação lado a lado (0°/90°/180°/-90°) para ela escolher com precisão.
++- **Decisão final**: no ecrã de login (`AuthScreen.js`), o `BrandMarkIcon` (tamanho 40) aparece por cima do título "TuCAN!" com `rotate={-90}`. **No canto superior esquerdo da topbar (`App.js`, ao lado do título, depois de login)**, o ícone foi experimentado e depois **removido a pedido dela** — a `.brand` View da topbar voltou a ser só o texto "TuCAN!", sem ícone. O ícone de "a minha conta" (canto superior direito) manteve-se inalterado (`rotate=180`, o valor por omissão).
++
++## Som do "Perfect!" — coro de pássaros exóticos, 5 segundos — 31/08/2026
++A Tania pediu para trocar o som de confetis (`confetti-pop.wav`) do momento "Perfect!" por algo "exótico", tema tucano. Três rondas, cada uma sintetizada em Python (`numpy`/`scipy`, sem depender de nenhuma biblioteca de áudio de terceiros nem de rede) e enviada para ela ouvir e dar feedback — eu não consigo ouvir áudio nesta sessão, só validar visualmente por espetrograma/forma de onda antes de enviar:
++1. **Primeira tentativa**: um "grasnido de tucano" sintetizado (glissandos descendentes, harmónicos ásperos, trémulo de amplitude) — **rejeitado** ("não gosto").
++2. **Pedido corrigido pela Tania**: "quero um som de pássaros exóticos" — reescrito do zero (não foi só ajustar parâmetros) num script novo, `scripts/make_exotic_birds_call.py`, com assobios quase-sinusoidais (mais brilhantes/melódicos, sem aspereza), 4 timbres de "espécies" diferentes, gaps aleatórios (seed fixa, reprodutível) para soar natural — **aprovado**.
++3. **Ajuste final**: esticado para exatamente 5 segundos (`assets/sounds/perfect-exotic-birds.wav`, mono, 16-bit, 44.1kHz, pico normalizado a 0.9) — **aprovado**, é o som atual.
++- `src/components/Confetti.js` aponta agora para este ficheiro (`PERFECT_SOUND`). Os ficheiros antigos (`confetti-pop.wav`, e a tentativa de grasnido `perfect-toucan-call.wav`) foram apagados do repositório cloud; **`confetti-pop.wav` não foi apagado no computador da Tania** (a ponte de dispositivo não consegue apagar ficheiros remotamente) — é inofensivo/já não é referenciado por nada, ela pode apagá-lo manualmente se quiser.
++
++## Marca (pin de duas cores) — favicon + ícone "a minha conta" — 31/08/2026
++A Tania pediu para recuperar o ícone que já existia no cabeçalho do tutorial (`marketing/tucan-tutorial.html`, canto superior esquerdo do passo 1/5 — a "brandmark" ao lado do texto "TuCAN!": um pin de duas cores, mostarda em baixo/coral em cima, com um pequeno "olho" escuro no meio) e usá-lo em dois sítios novos:
++
++- **Novo ficheiro `src/components/BrandMarkIcon.js`** — a mesma geometria SVG do tutorial, portada para `react-native-svg` (`Path`+`Circle`), com `size` e `bg` (cor do "olho" central, para combinar com o fundo onde o ícone é colocado) configuráveis. Cores vêm de `COLORS.mostarda`/`COLORS.c9` (tema), não estão hardcoded.
++- **Favicon da versão web**: gerado `assets/images/favicon.png` (512×512, o pin sobre um quadrado arredondado `COLORS.bg`, ao estilo de um ícone de app) a partir do mesmo desenho (renderizado com Playwright + convertido com PIL), e `app.json` ganhou `expo.web.favicon: "./assets/images/favicon.png"`. Confirmado no build (`npx expo export -p web`) que o Expo gera um `favicon.ico` (16/32/48px) a partir deste PNG e o `index.html` já aponta para ele.
++- **Ícone de "a minha conta" na topbar**: em `App.js`, o botão que abre o `ProfileScreen` (canto superior direito, ao lado da engrenagem) deixou de mostrar o `ToucanAvatar` e passou a mostrar `<BrandMarkIcon size={17} bg={COLORS.card} />` (o `bg` aqui é `COLORS.card`, não `COLORS.bg`, porque é a cor de fundo real desse botão — para o "olho" do pin ficar a combinar e não destacar-se). O `ToucanAvatar`/`DEFAULT_AVATAR` deixaram de ser importados em `App.js` (ficaram por usar depois desta troca).
++- Verificado visualmente com Playwright (build web real, sessão mockada) — o favicon aparece correto em miniatura e o botão da topbar mostra o pin em vez do tucano.
++- **Ver também a secção "Ajustes ao BrandMarkIcon — rotação por local de uso" acima** — a mesma componente ganhou mais dois usos (login, e uma tentativa depois revertida na topbar esquerda) numa ronda seguinte, ainda a 31/08/2026.
++
++## Bug corrigido: loop infinito ao voltar do login Google (causa raiz real) — 31/08/2026
++Depois da primeira correção do "loop" (ver secção abaixo, que resolvia só o sintoma de cair no onboarding), a Tania voltou a ficar presa numa sequência mais específica: **login com Google → Terminar sessão → login com Google outra vez → já não conseguia entrar**. Ela reparou que a URL, nessa segunda tentativa, vinha com **`##access_token=...`** (dois cardinais seguidos) em vez de um só, e que apagar tudo a seguir a `TuCan/#` resolvia manualmente.
++
++**Causa raiz real**: `src/utils/googleAuth.js` construía o `redirectTo` do `signInWithOAuth` a partir de `window.location.href` **tal como estava no momento do clique**. Se a barra de endereço ainda tivesse qualquer resto de um "#" de uma sessão anterior (mesmo vazio), esse resto ia dentro do `redirectTo` enviado à Supabase; ao voltar do Google, a Supabase limita-se a acrescentar `#access_token=...` a seguir ao `redirectTo` que lhe foi dado — e se esse `redirectTo` já tinha um "#", o resultado final ficava com dois "#" seguidos (`"...TuCan/#" + "#access_token=..."`). Com dois "#", o próprio Supabase já não consegue interpretar corretamente os parâmetros (o primeiro caráter do "access_token" passa a fazer parte de uma chave inválida), e a sessão nunca é criada — a pessoa fica presa no ecrã de login sem erro nenhum visível.
++
++**Correção, em dois pontos:**
++1. `src/utils/googleAuth.js` — `redirectTo` passou a ser sempre construído do zero, a partir de `window.location.origin + window.location.pathname` (nunca a partir de `.href`), tal como já era feito no redirect de recuperação de password. Isto garante que mesmo que a URL tenha algum resto por limpar, o próximo login com Google nunca o herda.
++2. `App.js` — novo `useEffect` que, assim que uma sessão fica confirmada (`session` passa a ter valor), chama `cleanAuthUrl()` para limpar por completo qualquer hash (`access_token=`/`refresh_token=`/`type=recovery`) que tenha ficado na barra de endereço — defesa extra, para a URL nunca acumular restos entre logins.
++
++**Verificado com Playwright**: simulando o cenário exato do bug (URL com um "#" residual antes do clique), a chamada real feita ao endpoint `/auth/v1/authorize` da Supabase foi intercetada e confirmado que o `redirect_to` enviado é sempre limpo (`http://.../TuCan/`, sem qualquer "#"), o que impede a URL de retorno de vir alguma vez com "##". Smoke test geral (onboarding → Saltar → AuthScreen) também sem erros de consola.
++
++## Aviso de navegador incorporado (in-app browser) — 31/08/2026
++A Tania perguntou se dá para forçar a app a abrir no navegador do telemóvel quando o link é clicado a partir de uma rede social/WhatsApp (em vez de abrir dentro do browser embutido dessas apps, que costuma bloquear logins Google e por vezes até `localStorage`). **Não é tecnicamente possível forçar isto de forma garantida, especialmente no iOS** (a Apple bloqueia deliberadamente essa manipulação) — expliquei isto à Tania antes de implementar a melhor alternativa possível:
++
++- **Novo ficheiro `src/components/InAppBrowserBanner.js`** — deteta o browser incorporado via `navigator.userAgent` (Instagram, Facebook/Messenger, Line, WeChat, TikTok, Twitter/X, LinkedIn, Snapchat, WhatsApp), mostra uma barra de aviso no topo (cor `COLORS.mostarda`) com botão de fechar.
++  - **Android**: botão "Abrir no Chrome", usa o truque `intent://...#Intent;scheme=https;package=com.android.chrome;end` para saltar diretamente para o Chrome.
++  - **iOS**: não há truque técnico equivalente — mostra instruções manuais (tocar no menu "⋯" e escolher "Abrir no Safari").
++  - Ambos têm um botão "Copiar link" (via `navigator.clipboard`) como alternativa universal.
++- Integrado em `App.js`, renderizado sempre no topo (`<InAppBrowserBanner/>`, antes do `WebFrame`).
++- Verificado com 3 user-agents simulados via Playwright: browser normal → sem aviso; Android+Instagram → aviso + botão Chrome; iOS+WhatsApp → aviso + instruções manuais, sem botão.
++
++## Bug corrigido: loop de volta ao onboarding ao voltar do login Google — 31/08/2026
++**Relatado pela Tania**: depois de terminar o tutorial de onboarding e clicar em "Continuar com o Google", a app voltava a mostrar o tutorial em vez de completar o login — "loop sem fim que impede a conexão". **Nota: este foi o primeiro de dois bugs relacionados com o login Google apanhados nesta sessão — ver a secção acima ("causa raiz real") para o segundo, mais subtil, que só aparecia ao repetir login→logout→login.**
++
++**Causa raiz**: o login com Google na web faz um redireccionamento de página inteira (não é um popup) — isto recarrega a app do zero, o que reinicia todo o estado React, incluindo o `useState(false)` do `LoggedOutFlow` que decide entre mostrar o Onboarding ou o AuthScreen. Resultado: depois do Google completar e a página recarregar, esse estado voltava sempre a `false` (Onboarding), independentemente de a sessão ter sido criada com sucesso — dando a sensação de "loop sem fim".
++
++**Correção**: `App.js` ganhou `isOAuthCallback()`, que verifica se a URL de arranque contém `access_token=`/`refresh_token=`/`provider_token=`/`error=` (sinais de que a app acabou de voltar de um redireccionamento OAuth). O `useState` do `LoggedOutFlow` passou a inicializar com `() => isOAuthCallback()` em vez de `false` — ou seja, se a app arranca já com esses parâmetros na URL, salta logo para o `AuthScreen` (que apanha a sessão), sem passar outra vez pelo Onboarding.
++
++**Verificado com Playwright**: a carregar a página com `#access_token=fake123&refresh_token=fake456...` na URL mostra logo o `AuthScreen`; uma visita nova/normal continua a mostrar o Onboarding como esperado.
++
++## Onboarding embutido na app, antes do login — 31/08/2026
++A pedido da Tania ("quero colocar este tutorial ao abrir a app e antes da página de login/registo"), o tutorial de 5 passos deixou de viver só no artifact/HTML (`marketing/tucan-tutorial.html`) e passou a fazer parte da própria app nativa:
++
++- **Novo ficheiro `src/screens/OnboardingScreen.js`** — reimplementação em React Native (não é um WebView do HTML) dos mesmos 5 passos, com os mesmos textos (agora todos traduzidos — ver "Correções/otimizações do focus group", item 5), ícones (portados de SVG web para `react-native-svg`) e tokens de `theme.js`. Estado local simples (`i`, índice do passo), crossfade com `Animated` entre passos, pontos de progresso, botões "Saltar" (só visível até ao penúltimo passo) e "Avançar"/"Entrar" (no último passo). Recebe uma prop `onDone` — não sabe nada sobre auth, só avisa quando terminou.
++- **`App.js`**: novo componente `LoggedOutFlow` (junto ao `Root` existente) que decide entre `OnboardingScreen` e `AuthScreen` com um estado local `showAuth` (desde 31/08/2026 já não é um `useState(false)` simples — ver "Bug corrigido: loop de volta ao onboarding" acima, agora inicializa com `isOAuthCallback()`); o ramo `if (!session)` do `App()` agora renderiza `<LoggedOutFlow/>` em vez de `<AuthScreen/>` diretamente.
++- **Decisão de produto, confirmada pela Tania (perguntei explicitamente, duas opções):** o tutorial aparece **sempre que não há sessão iniciada**, não só na primeira vez. Isto é deliberado — `LoggedOutFlow` não usa `AsyncStorage` nem nenhuma flag persistida; como é montado de novo sempre que `session` passa a `null` (incluindo depois de qualquer "Terminar sessão"), o `showAuth` volta sempre a `false` (exceto no caso de retorno OAuth, ver acima) e o tutorial reaparece. **Se a Tania decidir mais tarde que só deve aparecer uma vez**, a mudança é pequena: trocar o `useState` por uma leitura/escrita de `AsyncStorage` (já é dependência do projeto).
++- O ícone do tucano na página 1 do onboarding usa o **mesmo componente `ToucanAvatar`** que a app já usa no momento "Perfect!" (não é uma cópia/SVG separado) — `hat="none"`, cores de `DEFAULT_AVATAR`, dentro de um círculo `COLORS.agua` (para dar contraste; o corpo do tucano é quase preto e ficava invisível direto sobre `COLORS.bg`/`COLORS.card`, o mesmo ajuste que já tinha sido preciso no artifact HTML).
++- **Verificado com um build web real** (`npx expo export -p web` + Playwright, técnica habitual desta sessão): as 5 páginas renderizam corretamente, "Saltar" desaparece na última página, o botão final muda para "Entrar", e a clicar nele chega-se mesmo ao `AuthScreen` real (login por email/password + Google). `node_modules`/`dist` apagados a seguir para poupar espaço no workspace cloud (não é preciso manter).
++- Ficheiros `App.js` e `src/screens/OnboardingScreen.js` sincronizados com sucesso para o computador da Tania via `device_commit_files` — falta o `git push` dela.
++- **Pitch da página 1 do tutorial (mesmo texto no HTML e no `OnboardingScreen.js`), afinado em várias rondas a pedido da Tania**: ícone trocado para o tucano real do "Perfect!" (não um desenho abstrato); parágrafo explicativo trocado por um slogan curto — **"Yes. Tu podes."** (inspirado em "Yes We Can", adaptado ao singular); o parágrafo seguinte reescrito pela positiva e depois substituído pela frase final que a Tania escolheu: **"Mais do que uma app de hábitos com gráficos bonitos, a TuCAN é o bater de asas que te faz voltar diariamente — mesmo depois da segunda semana."**
++
++## Rename do nome visível: "Vas-Y!" → "TuCAN!" (31/08/2026)
++A pedido da Tania, mudado o **nome visível apenas** em todo o lado onde aparece na interface e documentação — deliberadamente **sem tocar** nos identificadores técnicos, para não partir o deep link do Google OAuth já configurado:
++- `AuthScreen.js` — título do ecrã de login.
++- `App.js` — título na topbar.
++- `app.json` — campo `"name"`: `"Vas-Y!"` → `"TuCAN!"`.
++- `README.md` — título principal.
++
++**Ficou intencionalmente por mudar** (não tocar sem pedido explícito, para não partir nada): `app.json`'s `bundleIdentifier`/`package: "com.tania.vasy"`, `"scheme": "vasy"`, e o `"name"` do `package.json` (`"vasy-app"`). O repositório GitHub continua a chamar-se `TuCan` (`github.com/taniavcarreira/TuCan`), o mesmo do deploy em `https://taniavcarreira.github.io/TuCan/`.
++
++## Correções rápidas de 31/08/2026 (junto com o rename acima)
++- **Scroll sobreposto pela barra de navegação**: `BottomNav.js` é `position:'absolute', height: NAV_HEIGHT` (74), mas `HojeScreen.js`, `SemanaScreen.js` e `TreinoScreen.js` só tinham `paddingBottom: 24` no `ScrollView`. Corrigido nos três para `paddingBottom: NAV_HEIGHT + 24` (98) — importaram `NAV_HEIGHT` de `../theme`. Verificado visualmente com um mockup HTML + Playwright, a fazer scroll até ao fim, confirmando o último item completamente visível acima da barra.
++- **Bug real no login (`AuthScreen.js`)**: a função `submit()` tinha `try {...} finally {...}` **sem `catch`**, pelo que qualquer erro lançado (rede em baixo, armazenamento do browser bloqueado — típico de navegador de app tipo WhatsApp/Instagram) ficava completamente silencioso — o botão "parecia não fazer nada". Adicionado um `catch (err)` que mostra sempre uma mensagem, mesmo genérica, incluindo uma sugestão de abrir o link noutro browser. Isto surgiu de um relato do focus group: tanto o login por email/password como o Google "não faziam nada" no telemóvel, sem erro nenhum — a correção acima resolve pelo menos o sintoma de "nada acontece"; a hipótese principal para a causa raiz continua a ser navegador de app (in-app browser), que o Google bloqueia por política própria e que também pode restringir `localStorage`/`IndexedDB` (partindo o login por password também). **Entretanto (ver secção "Aviso de navegador incorporado" acima) já foi construído um aviso + atalho para mitigar isto** — falta só confirmar com o focus group se era mesmo esta a causa.
++- **Botão de terminar sessão**: `ProfileScreen.js` ganhou um botão "Terminar sessão" (chama `supabase.auth.signOut()`), com estilo a condizer (borda/texto em `COLORS.c9`, vermelho coral) — não existia antes. **Desde 11/09/2026 pede confirmação antes de terminar sessão — ver "Correções/otimizações do focus group", item 2.**
++
++## Tutorial/pitch de boas-vindas — marketing (artifact HTML, 31/08/2026)
++A pedido da Tania ("recupera o contexto e a necessidade que levou à construção desta app... faz um pitch + uma página por aba + explicação da Config + tutorial com avançar/saltar"), construído `marketing/tucan-tutorial.html` — um tutorial interativo de 5 passos, com pontos de progresso e botões "Saltar"/"Avançar". **Esta versão HTML fica como peça de marketing/partilha externa** (publicada como Artifact, útil para enviar a alguém fora da app); a versão que os utilizadores realmente veem ao abrir a app é a reimplementação nativa `OnboardingScreen.js`, ver secção própria acima — os textos e a ordem são os mesmos nas duas (a versão HTML fica só em português; a app nativa é que ganhou tradução PT/EN/FR a 11/09/2026). **O cabeçalho deste HTML (o pin de duas cores + "TuCAN!" no canto superior esquerdo do passo 1/5) foi reaproveitado a 31/08/2026 como favicon e ícone de "a minha conta" da app — ver secção "Marca (pin de duas cores)" acima.**
++1. **Pitch da app** — explora o trocadilho TuCAN!/tucano/"Tu Podes", tom assertivo-leve-divertido, sem ser mais uma app de hábitos genérica. Ícone: o tucano real do momento "Perfect!" (não um desenho geométrico abstrato — trocado a pedido da Tania). Frase-chave: **"Yes. Tu podes."** (slogan criado por inspiração em "Yes We Can", adaptado ao singular — trocou um parágrafo explicativo maior que existia antes).
++2. **Hoje** — check-in diário: ProudOfMe (75%)/Perfect! (25%), até 10 campos próprios, Energia (emojis desde 11/09/2026 — antes era 1-5 numérico), animação do tucano no Perfect!.
++3. **Semana** — grelha de 7 dias, corrigir em atraso, onda semanal + resumo, tendência mensal/anual.
++4. **Treino** — registo de atividade/duração/intensidade, gráfico semana/mês/ano, histórico dos últimos 30.
++5. **Configurações** — Perfect!/ProudOfMe sempre fixos, até 10 campos próprios (nome/tipo/cor/ícone únicos), reordenar/editar/apagar.
++
++Reutiliza os tokens de design reais de `src/theme.js` (cores/fontes) e o vocabulário visual da própria app (cartões com borda 2px, cantos arredondados). Publicado como Artifact (privado, partilhável pela Tania quando quiser) e também sincronizado para `marketing/tucan-tutorial.html` no computador dela. Verificado visualmente com Playwright (as 5 passagens, incluindo o CTA final "Abrir a TuCAN!" a abrir o site em nova aba).
++
++## ⚠️ Limitação importante (30/08/2026): não consigo publicar no GitHub a partir desta sessão cloud
++Confirmado ao tentar publicar o site web no repositório `github.com/taniavcarreira/TuCan`: esta sessão cloud está atrás de um **proxy de git interno** que **bloqueia qualquer `git push` ou escrita via API do GitHub** para qualquer repositório que não esteja na "lista autorizada desta sessão" — **mesmo fornecendo a Tania um Personal Access Token válido dela**. Mensagem de erro exata: `access denied by the git proxy: <repo> is not in this session's authorized repository set... To fix, add the repository to the session's sources.` Existe supostamente um mecanismo `add_repo`, mas **não está disponível como ferramenta nesta sessão** (confirmado via `ToolSearch`). Confirmado também que **não há nenhuma ferramenta de shell remoto** (`device_bash`) para o computador da Tania — só ferramentas de copiar ficheiros (`device_stage_files`/`device_commit_files`). Também confirmado que `taniavcarreira.github.io` (o domínio final do site) está fora da whitelist de rede daqui — não consigo sequer verificar se o site está no ar com um `curl`, só a Tania consegue confirmar visualmente.
++
++**Consequência prática, para qualquer sessão futura:** nunca tentar `git push`/escritas API do GitHub a partir daqui — vai falhar sempre, para qualquer repositório. O único caminho é: 1) preparar tudo no workspace cloud (e fazer commit local aí só para manter histórico, sabendo que o push vai falhar sempre — não vale a pena tentar), 2) sincronizar os ficheiros alterados para o computador da Tania via `device_commit_files` **quando o dispositivo está ligado** — na sessão de 11/09/2026 não estava, por isso os ficheiros foram entregues como `.zip` via chat (ver "Correções/otimizações do focus group" acima), 3) dar-lhe os comandos de terminal exatos para ela correr no computador dela (`git add -A`, `git commit`, `git push`). Ficheiros dentro de `.github/` (ex.: workflows) também são **protegidos e rejeitados por `device_commit_files`** ("is a protected file and cannot be written via remote tools") — para esses, dar à Tania o conteúdo para colar manualmente (o truque que resultou bem: um bloco único de PowerShell com `mkdir` + `Out-File` heredoc, em vez de Bloco de Notas — o Bloco de Notas tende a gravar com `.txt` a mais no nome sem ela reparar, o que já aconteceu e teve de ser corrigido com `git mv`).
++
++**Nota sobre a Tania como "operadora do terminal":** ela é leiga em desenvolvimento — nunca tinha usado terminal/git antes de 30/08/2026. Precisa de instruções muito explícitas e literais (o que é "a pasta do projeto", etc.) — não assumir conhecimento nenhum de ferramentas de developer em instruções futuras que ela tenha de executar. Ela consegue seguir bem passo a passo copiando e colando, e sabe tirar prints quando pedido.
++
++**Confirmar sempre no início de cada sessão futura se a Tania já fez `git push` da última leva de alterações** — a mais recente é a de 11/09/2026 (9 itens do focus group, ver secção própria acima), entregue como `.zip` porque o dispositivo dela não estava ligado à sessão.
++
++## Site web responsive (GitHub Pages) — publicado e no ar desde 30/08/2026 ✅
++A pedido da Tania ("alternativa mais rápida ao TestFlight"), preparei uma versão web responsive da app (Expo web export) publicada em GitHub Pages: **`https://taniavcarreira.github.io/TuCan/`** — confirmado pela própria Tania que está a funcionar, incluindo login.
++- `App.js`: componente `WebFrame` (`Platform.OS === 'web'` only) que centra a app numa coluna max-width 480px em ecrãs largos, sem alterar nada no iOS/Android.
++- `app.json`: `expo.experiments.baseUrl = "/TuCan"` (necessário para os caminhos dos assets funcionarem no subpath do GitHub Pages).
++- `package.json`/`package-lock.json`: dependências reais `react-native-web`, `react-dom@19.1.0` (pinado à mesma versão do `react@19.1.0` do projeto, senão dá conflito ERESOLVE), `@expo/metro-runtime`.
++- `.gitignore` e `.github/workflows/deploy-pages.yml` (build automático via GitHub Actions a cada push para `main`, `npx expo export -p web` + `actions/deploy-pages`).
++- `.env` **foi propositadamente incluído no commit** (não está no `.gitignore`) — os valores `EXPO_PUBLIC_SUPABASE_URL`/`EXPO_PUBLIC_SUPABASE_ANON_KEY` já são seguros para expor no cliente (RLS ativo em todas as tabelas), e acabam sempre no bundle JS público de qualquer forma.
++- O repositório teve de passar a **público** (Settings → General → Danger Zone → Change visibility) — GitHub Pages com "Source: GitHub Actions" só está disponível gratuitamente em repos públicos, privados exigem plano pago. Confirmado seguro pela mesma razão do `.env` acima.
++- Também foi preciso configurar em **Supabase → Authentication → URL Configuration**: o campo **"Site URL"** (estava por omissão em `http://localhost:3000` e provocava um redireccionamento partido depois do login) e a lista **"Redirect URLs"**, ambos atualizados para `https://taniavcarreira.github.io/TuCan/`.
++
++## Login/registo com Google — adicionado 30/08/2026 ✅ (confirmado a funcionar na versão web)
++A pedido da Tania: `AuthScreen.js` tem agora um botão "Continuar com o Google" (ícone "G" multicolor em SVG, separado do formulário de email por um divisor "ou").
++
++**Arquitetura (suporta web e nativo, mas só testado em web até agora):**
++- `src/utils/googleAuth.js` (novo) — `signInWithGoogle()`, com dois caminhos:
++  - **Web**: `supabase.auth.signInWithOAuth({provider:'google', options:{redirectTo}})` com redireccionamento de página inteira (evita bloqueadores de pop-up), `redirectTo` construído a partir de `window.location.origin + window.location.pathname` (**alterado a 31/08/2026** — era `window.location.href`, ver "Bug corrigido: loop infinito ao voltar do login Google (causa raiz real)" acima). A sessão é apanhada automaticamente pelo Supabase quando a página recarrega.
++  - **Nativo (iOS/Android, preparado mas não testado)**: usa `expo-web-browser` (`openAuthSessionAsync`) + `expo-linking` (`Linking.createURL('/')`, que junto com `app.json`'s `scheme: "vasy"` gera um deep link `vasy://`) + `expo-auth-session`'s `QueryParams` para extrair `access_token`/`refresh_token` da URL de retorno e chamar `supabase.auth.setSession()` manualmente.
++- `src/supabaseClient.js`: `detectSessionInUrl` passou a ser `Platform.OS === 'web'` (só ligado no browser — no nativo a sessão é apanhada manualmente, ver acima).
++- `app.json`: `"scheme": "vasy"` adicionado (raiz do objeto `expo`) — necessário para o deep link nativo. **Mantido `vasy` mesmo depois do rename para TuCAN!** (ver secção do rename acima) para não partir a configuração já feita no Google Cloud Console/Supabase.
++- Novas dependências: `expo-web-browser`, `expo-linking`, `expo-auth-session` (resolvidas por `npm install` sem conflitos, ~57.x, compatíveis com SDK 54).
++- `AuthScreen.js` também ganhou um `useEffect` (só web) que lê `window.location.hash`/`search` à procura de `error`/`error_description` devolvidos pelo Supabase/Google e mostra-os na linha de erro vermelha já existente — sem isto, uma falha na troca de código ficava completamente silenciosa (a app só "voltava ao ecrã de login" sem explicação nenhuma). **Manter isto** — foi essencial para diagnosticar os problemas reais abaixo, e continua útil para o futuro.
++
++**Configuração externa necessária (feita pela Tania, fora do código, documentada aqui para não repetir a exploração):**
++1. Google Cloud Console → OAuth consent screen (External) → Credentials → OAuth client ID tipo **Web application**, com Authorized redirect URI = `https://jjlpfjegikxoholzwvfq.supabase.co/auth/v1/callback` (o callback da própria Supabase, não da app).
++2. Supabase → Authentication → Providers → Google: colar aí o Client ID + Client Secret gerados no passo 1.
++3. Supabase → Authentication → URL Configuration: **Site URL** e **Redirect URLs** atualizados para `https://taniavcarreira.github.io/TuCan/` (ver secção do site web acima — foi a mesma configuração que resolveu os dois).
++
++**Bugs reais apanhados e corrigidos nesta ronda (úteis se o login com Google voltar a partir-se no futuro):**
++- **"localhost n'autorise pas la connexion"** depois do login — causado pelo "Site URL" da Supabase ainda estar no valor por omissão (`http://localhost:3000`); a Supabase usa esse campo como fallback quando o `redirectTo` pedido não bate certo com a lista de "Redirect URLs". Corrigido atualizando o Site URL.
++- **"Unable to exchange external code: 4/0A..."** — Client Secret mal colado na Supabase (espaço a mais ou copiado incompleto). Corrigido copiando de novo do Google Cloud Console com cuidado e colando de raiz (apagar o campo todo antes de colar).
++- Depois de ambos corrigidos, o login com Google passou a funcionar na versão web, **confirmado pela Tania** ("já funcionou").
++- **Loop de volta ao onboarding** e **URL "##access_token=..." impossível de interpretar** (login→logout→login) — ver as duas secções próprias acima, ambos corrigidos a 31/08/2026.
++
++**Por fazer / não testado:**
++- Login com Google no telemóvel (Expo Go ou build EAS/TestFlight) — o caminho nativo em `googleAuth.js` está escrito mas nunca foi exercitado. Vai provavelmente ser preciso adicionar o próprio deep link (`vasy://`) à lista de "Redirect URLs" da Supabase antes de funcionar mesmo (a app web só precisou do URL do GitHub Pages). No Expo Go especificamente pode nem funcionar bem (o link de retorno muda por sessão) — normal, resolve-se sozinho na build final.
++- Tania foi avisada para considerar regenerar o Client Secret do Google (Google Cloud Console → Credentials → Reset secret) porque colou o valor em texto simples nesta conversa — não é urgente, só higiene.
++- **11/09/2026**: o novo ecrã de permissões pós-login (`PermissionsScreen.js`) mostra-se depois de QUALQUER login bem-sucedido, Google incluído — ainda não testado com uma sessão Google real (só com o build estático, sem sessão).
++
++## ⚠️ Ações pendentes da Tania
++- **Copiar as alterações do `.zip` entregue a 11/09/2026** (9 itens do focus group — ver secção própria acima) para `C:\Users\tania\Documents\Projectos\VasYApp\vasy-app`, substituindo os ficheiros existentes (a estrutura de pastas dentro do zip corresponde exatamente à do projeto). **O `package.json` mudou** (nova dependência `expo-localization`) — depois de copiar, correr `npm install` antes de testar.
++- **Depois disso, correr no terminal dela, dentro da pasta do projeto**: `git add -A`, depois `git commit -m "Implementa as 9 correções/otimizações do focus group (11/09/2026)"`, depois `git push`.
++- **Testar os 9 itens com uma conta real** (nenhum foi verificado com sessão Supabase real nesta sessão — só o onboarding/login, que não precisam de sessão): confirmar que o Perfect! só ativa com tudo cumprido, que apagar todos os campos em Configurações não os faz reaparecer ao voltar a entrar, que o username grava/lê bem, que a confirmação de sign-out aparece nos dois sítios, que o ecrã de permissões aparece só uma vez, e que trocar o idioma no Perfil muda a app toda.
++- **Copiar as alterações do `.zip` entregue a 12/09/2026** (item 7, GIF do Perfect! — ver secção "GIF do Perfect! (item 7)" acima) para o mesmo projeto local, substituindo os ficheiros existentes. **O `package.json` mudou outra vez** (nova dependência `expo-image`) — correr `npm install` antes de testar. Depois: `git add -A && git commit -m "Substitui a imagem/animação do Perfect! pelo GIF da Tania (item 7)" && git push`. O zip inclui um `APAGAR__toucan-leaves-bg.txt` a lembrar de apagar `assets/images/toucan-leaves-bg.png` (um zip não representa remoções, por isso o commit local já o tem removido, mas a cópia manual para a pasta dela não apaga sozinha).
++- **Testar a animação do Perfect! num telemóvel real** (iOS e Android) — só verificado em build web via Playwright nesta sessão; o `expo-image` deve garantir a animação em ambas as plataformas nativas, mas nunca foi confirmado num dispositivo a sério.
++- **Correr o SQL `check_email_status.sql` no Supabase (SQL Editor)** — necessário para as mensagens específicas dos 6 cenários de recuperação de password (ver secção própria acima); sem isto a app continua a funcionar, só com mensagens genéricas.
++- **Testar a sequência login Google → logout → login Google outra vez** num browser real (site GitHub Pages) — foi o bug reportado por ela e corrigido a 31/08/2026 (ver "Bug corrigido: loop infinito ao voltar do login Google (causa raiz real)"), só verificado com mocks aqui.
++- Testar o onboarding no telemóvel dela (`npx expo start` depois de sincronizado) — só foi verificado nesta sessão via build web + Playwright, nunca em Expo Go/dispositivo real.
++- Testar o fluxo completo de recuperação de password num dispositivo/browser real (pedir o link, receber o email, clicar, definir nova password) — só verificado com mocks nesta sessão.
++- Confirmar (ou perguntar ao focus group) se abriram o link de login dentro do WhatsApp/Instagram (in-app browser) — hipótese principal para o "login não fazia nada" no telemóvel, ver secção de correções de 31/08/2026 acima; já existe um aviso + atalho para isto, falta confirmar se resolveu.
++- Testar o login com Google no telemóvel quando a app for testada via Expo Go ou EAS — provavelmente vai ser preciso voltar aqui para adicionar o deep link `vasy://` às Redirect URLs da Supabase (ver secção acima).
++- 29/08/2026: decidido avançar o focus group só em iOS via TestFlight — falta a Tania inscrever-se no Apple Developer Program (99 USD/ano). Ver secção "Testar no telemóvel / distribuir a focus group" abaixo.
++- **Testar em telemóvel real que "Adicionar ao ecrã inicial" (iOS Safari) e "Instalar app" (Android Chrome) mostram o ícone novo do tucano** — só verificado aqui a inspecionar os ficheiros gerados e a confirmar que carregam sem erro; o comportamento real do SO (recorte de cantos, se o Android pede o `manifest.json` antes de aceitar instalar, etc.) só se confirma num dispositivo a sério.
++- **Ler o compromisso de privacidade que decidir escrever para a psicóloga/pacientes** (email continua visível para a Tania como dona do projeto Supabase — ver secção "Privacidade dos dados dos utilizadores" acima) — isto é só uma nota de continuidade, não uma tarefa técnica minha; mencionar se ela voltar a este tópico.
++
++## ⚠️ Limitação de rede — importante para pedidos de imagem/foto
++Este ambiente de trabalho (cloud sandbox) **não tem acesso geral à internet** — só a uma lista de domínios permitidos (registries de pacotes: npm/pypi/GitHub raw, etc. — mas só *leitura* do git/GitHub, ver limitação acima sobre escrita; `taniavcarreira.github.io` também está fora, ver a mesma secção). Confirmado ao tentar `curl` diretamente (bloqueado pelo proxy, HTTP 403/connection refused). As ferramentas de imagem da Adobe disponíveis aqui têm a sua própria whitelist de domínios e **também recusam URLs fora dela** (ex.: `cdn.gamma.app`, onde o Gamma aloja as imagens que gera). **A mesma limitação afeta `expo.dev`/`api.expo.dev`** (confirmado com `curl` — connection timeout) — qualquer comando `eas` (login/build/submit) tem de correr fora deste ambiente, no computador da Tania. Confirmado também que `vercel.com`, `netlify.com`, `pages.cloudflare.com`, `surge.sh` estão todos fora da whitelist — só GitHub Pages (via sync manual + push da Tania) é viável para hosting estático a partir daqui.
++
++**Consequência prática:** dá para gerar imagens via Gamma, mas **não dá para as descarregar nem processar** neste ambiente — ficam presas na CDN da Gamma. Da mesma forma, EAS Build/Submit não podem ser executados a partir daqui.
++
++**O que funciona bem, na prática (confirmado 26/08/2026, reforçado 28/08–11/09/2026):**
++- Pedir à Tania para enviar imagens de referência **diretamente aqui no chat** (upload) — ficam logo no filesystem local desta sessão, sem depender de rede nenhuma, e eu consigo vê-las e usá-las como inspiração ou até como base para recorte/tratamento (ver técnica de remoção de fundo abaixo).
++- Para arte/mascote da app: desenhar sempre em **SVG puro** (`react-native-svg`) em vez de tentar trazer uma imagem gerada por IA — não depende de rede, escala sem perda, e é o que a app já usa em todo o lado. Uma foto real (enviada pela Tania) pode ser usada como **imagem estática de fundo** (ver secção do fundo de folhas) — nesse caso não é SVG, é PNG com fundo removido, embutido nos assets da app.
++- Truque útil para desenhar SVG "às cegas" (sem preview nativo disponível), e também para verificar qualquer página HTML nova (ex.: o tutorial/artifact de 31/08, o mockup do favicon, ou os ícones de ecrã inicial): escrever a marcação num `.html` standalone e tirar print com **Playwright + o Chromium local já instalado** (`/opt/pw-browsers/chromium-1194/chrome-linux/chrome`, via `playwright` instalado globalmente — `node -e "require.resolve('playwright')"` confirma, sem precisar de `playwright install`) — depois ver o PNG com a ferramenta `Read`. Isto não depende de rede nenhuma (só falha o carregamento de fontes externas tipo Google Fonts, que fica bloqueado — inofensivo, cai para a fonte de reserva) e permite iterar a forma/cores antes de dar como pronto. Usado com sucesso para o `ToucanAvatar.js`, o redesenho de 28/08, o botão do Google, o mockup do scroll fix, o tutorial de 31/08, a integração do onboarding nativo, a verificação dos 6 cenários de recuperação de password, o favicon/BrandMarkIcon, a verificação do fix do bug "##", os ícones de ecrã inicial, a verificação de ponta a ponta da encriptação de nome/apelido, e a verificação de i18n (PT/EN/FR) do onboarding+login de 11/09/2026 — nesses casos, mockando as respostas da API Supabase via `page.route()` (lembrar que os padrões glob do Playwright têm de terminar em `**`, não só no caminho base, para apanhar pedidos com querystring — já apanhou um "Failed to fetch" silencioso por causa disto; e que `route.request.post_data` na API Python é uma propriedade, não um método), e também intercetando o próprio pedido de navegação para `/auth/v1/authorize` para inspecionar os parâmetros exatos enviados (útil para confirmar `redirect_to` sem depender de completar o OAuth real). **Para testar i18n especificamente**: `browser.new_context(locale='pt-PT'|'en-US'|'fr-FR')` no Playwright basta para exercitar a deteção automática de idioma via `expo-localization` (que lê o locale do browser em web), sem precisar de mudar nada na app.
++- **Servir o build web fora do subpath `/TuCan/`**: o `serve` (pacote npm) não segue symlinks nem serve corretamente uma pasta cujo `index.html` referencia caminhos absolutos `/TuCan/...` a menos que exista mesmo uma subpasta física `TuCan/` dentro da raiz servida — criar essa subpasta (copiar `dist/` para `algumapasta/TuCan/`, não symlink) e servir a pasta-mãe é o que funciona. Além disso, processos em segundo plano lançados com `(comando &)` numa chamada Bash **não sobrevivem para a chamada seguinte** neste ambiente — o servidor tem de ser arrancado e usado (curl/Playwright) dentro da mesma chamada Bash (ex.: `npx serve -l 8080 pasta >log 2>&1 & sleep 2; curl ...`), nunca a arrancar numa chamada e testar noutra.
++- **Simular uma sessão Supabase já iniciada, sem backend real**: pré-carregar `window.localStorage` (via `page.add_init_script`, antes de qualquer navegação) com a chave `sb-jjlpfjegikxoholzwvfq-auth-token` (o padrão usado pelo `@supabase/supabase-js` v2, mesmo com `AsyncStorage` como storage adapter — no web, o `@react-native-async-storage/async-storage` usa `window.localStorage` diretamente, sem prefixo nenhum na chave) contendo um objeto `Session` falso (`access_token`, `refresh_token`, `expires_at` **bem no futuro** para não disparar um refresh automático, e `user` com `id`/`email`/`user_metadata`). Combinado com `page.route()` a mockar os pedidos REST (`/rest/v1/fields`, `/days`, `/sessions`) e, quando aplicável, o `PUT /auth/v1/user`, dá para testar ecrãs que só aparecem depois de login (`Root`, `ProfileScreen`, etc.) sem precisar de credenciais reais nem de rede ao projeto Supabase real — foi assim que se verificaram as capturas da topbar e, mais a fundo, o roundtrip completo de cifra→envio→"reload"→decifra da encriptação de nome/apelido. **Não foi repetido para os ecrãs autenticados na sessão de 11/09/2026** por falta de tempo — fica como técnica disponível para uma próxima sessão confirmar os itens 1/2/3/4/6/8/9 sem esperar pela Tania.
++- Para gerar um ícone/favicon a partir de um SVG: renderizar o SVG dentro de um `.html` (com o fundo/moldura desejados) via Playwright, tirar `element.screenshot({omitBackground:true})` a alta resolução (ex.: 512×512), e depois usar `PIL` para gravar o PNG final — o Expo (`npx expo export -p web`) trata da conversão para `.ico` multi-resolução sozinho a partir do PNG referenciado em `app.json`'s `expo.web.favicon`. Para ícones de ecrã inicial (apple-touch-icon/manifest), o mesmo truque, mas gravados em `public/` (ver secção "Ícone de ecrã inicial" acima) para o Expo os copiar tal e qual, sem precisar de nenhuma conversão automática.
++- Para telas ou canvas muito grandes com imagem embutida em base64 (ex.: uma foto de 500KB+ inline num `.html`), a ferramenta `Read` pode falhar com "exceeds maximum allowed tokens" — nesse caso, editar o `.html` via Python/Bash (`open()`/`writelines()`) em vez de `Read`/`Edit`, e usar `Grep -n` para localizar linhas.
++- Para "compilar e ver o resultado" sem precisar de dispositivo/Expo Go: dá para gerar um build **web** (`npx expo export -p web`, usa o Metro do próprio projeto, funciona sem rede fora do registry do npm) e screenshotar com Playwright, servindo `dist/` localmente (ver truque do `serve`/subpasta `TuCan/` acima). Como a app real exige login Supabase, isto já foi feito com sucesso servindo o build real com o login Supabase real a funcionar de verdade (não é preciso mockar dados) — foi assim que se verificou o onboarding embutido de ponta a ponta (5 passos → "Entrar" → ecrã de login real) e a tradução PT/EN/FR de 11/09/2026. Depois de cada verificação destas, `node_modules`/`dist` são apagados do workspace cloud para poupar espaço (não precisam de ficar).
++- Quando algo falha silenciosamente do lado do browser (ex.: o login com Google "não fazia nada"), vale a pena ler o código-fonte da biblioteca em causa diretamente em `node_modules` (`npm install --no-save <pacote>`, `grep`/`sed` no ficheiro `.ts` em `src/`, depois apagar `node_modules` outra vez) em vez de adivinhar — foi assim que se confirmou o `flowType` por omissão do `@supabase/auth-js` (`'implicit'`) e se percebeu onde a app precisava de expor os erros da URL de retorno. A mesma técnica (ler o código-fonte compilado em `node_modules/expo/node_modules/@expo/cli/build/src/export/`) serviu para confirmar como o export web trata a pasta `public/` e o template do `index.html`, ver secção "Ícone de ecrã inicial" acima.
++- Artifacts (páginas HTML autónomas, como o tutorial de 31/08) publicam-se com a ferramenta `Artifact` a partir de um ficheiro já escrito no workspace cloud — não depende da whitelist de rede acima, é um caminho de publicação à parte.
++
++## Bug pré-existente corrigido (23/08/2026)
++`HojeScreen.js`, `SemanaScreen.js` e `ConfigScreen.js` importavam `textColorFor` de `../utils/fields` (nunca existiu lá) em vez de `../theme`. Corrigido nos três ficheiros.
++
++## Stack
++- Expo SDK 54, React Native 0.81.5, React 19.1
++- Supabase — auth por email/password **e Google OAuth** (30/08/2026), tabelas `fields`, `days`, `sessions` com RLS
++- `react-native-svg`, `@react-native-community/datetimepicker` 8.4.4, `expo-audio` ~1.1.1
++- `react-native-web`, `react-dom@19.1.0`, `@expo/metro-runtime` (29-30/08/2026 — para a versão web)
++- `expo-web-browser`, `expo-linking`, `expo-auth-session` (30/08/2026 — para o login com Google)
++- `crypto-js@4` (31/08/2026 — para a encriptação do perfil, ver secção "Privacidade dos dados dos utilizadores")
++- `expo-localization` (11/09/2026 — deteção automática do idioma do dispositivo, ver secção "Correções/otimizações do focus group", item 5)
++- `expo-linear-gradient` já é dependência do projeto mas **não é usada** no onboarding nativo (usei um `backgroundColor` sólido `COLORS.agua` em vez de gradiente, para manter o componente simples) — disponível se um dia se quiser um efeito de gradiente mais próximo do artifact HTML.
++
++## Estrutura (atualizada 11/09/2026)
++```
++App.js                        — root: fontes, sessão auth, navegação, topbar (título traduzido via t(),
++                                 ícone de "a minha conta" = BrandMarkIcon), envolto em <LanguageProvider>,
++                                 camada de confetis, confirmação de sign-out (ConfirmModal),
++                                 ramo de estado permissionsSeen → <PermissionsScreen/> pós-login,
++                                 setAudioModeAsync({playsInSilentMode:true}) no arranque,
++                                 WebFrame (só Platform.OS==='web') centra a app em ecrãs largos,
++                                 InAppBrowserBanner, LoggedOutFlow (Onboarding→AuthScreen),
++                                 deteção de retorno OAuth (isOAuthCallback) e de recuperação de
++                                 password (isPasswordRecoveryUrl) — ver secções próprias
++src/theme.js
++src/supabaseClient.js         — detectSessionInUrl: Platform.OS==='web' (ver secção do Google)
++src/context/DataContext.js    — CRUD de campos/dias/treinos + profile (username_enc — ver
++  "Correções/otimizações do focus group" item 3) + fieldsInitialized (item 1/6) + loadTrendDays;
++  loadCustomFields já não auto-semeia campos na BD
++src/i18n/
++  translations.js             — novo, 11/09/2026 — dicionário [chave, pt, en, fr], ~200 chaves
++  LanguageContext.js          — novo, 11/09/2026 — LanguageProvider/useLanguage(), deteção
++    automática via expo-localization + escolha manual persistida em AsyncStorage
++src/utils/dates.js, fields.js (suggestedFields()/energiaOptions()/scoreMessage(...,t) — novos,
++    11/09/2026), avatars.js (DEFAULT_AVATAR), googleAuth.js, authChecks.js, profileCrypto.js
++src/components/
++  Shape.js, RingChart.js (no "Perfect!" mostra a animação WebP enviada pela Tania — expo-image,
++    animação de voo/mola de entrada mantida — item 7, 12/09/2026),
++  ToucanAvatar.js, BrandMarkIcon.js, Branch.js (órfão desde o item 7 — só era usado por RingChart.js),
++  Confetti.js (som via expo-audio — coro de pássaros exóticos),
++  ElectricLine.js, InAppBrowserBanner.js, WeeklyWaveChart.js, TrendAccordion.js, BottomNav.js,
++  ConfirmModal.js              — novo, 11/09/2026 — diálogo de confirmação genérico/reutilizável
++src/screens/
++  OnboardingScreen.js (tutorial de 5 passos, agora traduzido PT/EN/FR),
++  AuthScreen.js (traduzido; email/password + Google + 6 cenários de recuperação de password +
++    deriva/guarda a chave de encriptação após login/registo),
++  ResetPasswordScreen.js (traduzido; deriva/guarda nova chave de encriptação),
++  PermissionsScreen.js         — novo, 11/09/2026 — ecrã informativo pós-login (item 4)
++  HojeScreen.js (placeholders na 1ª visita, gating do Perfect!, energia em emojis — itens 1/8/9),
++  SemanaScreen.js (energia em emojis por tap-cycle — item 9, traduzido),
++  TreinoScreen.js, ConfigScreen.js (traduzidos),
++  ProfileScreen.js (username único + seletor de idioma + confirmação de sign-out — itens 2/3/5)
++supabase/sql/check_email_status.sql — função Postgres security definer para a Tania colar no SQL
++  Editor da Supabase, ver secção de recuperação de password
++assets/sounds/perfect-exotic-birds.wav — coro de pássaros exóticos sintetizado com Python/numpy/scipy
++assets/images/perfect-toucan.webp — animação WebP (39 frames, alfa) enviada pela Tania, usada no
++  momento "Perfect!" desde o item 7 (12/09/2026); toucan-leaves-bg.png foi removido
++assets/images/favicon.png — o pin de duas cores sobre fundo COLORS.bg, 512×512
++public/ — index.html/manifest.json/apple-touch-icon.png/icon-192.png/icon-512.png (PWA)
++scripts/make_home_icons.py — gera os PNGs de public/ a partir do ToucanAvatar
++marketing/tucan-tutorial.html — versão HTML/artifact do tutorial (só português, para partilha externa)
++eas.json                      — perfis de build EAS (29/08/2026), ver secção do focus group
++.gitignore, .github/workflows/deploy-pages.yml — ver "Site web responsive" (publicado e no ar)
++```
++
++## Avatar do tucano — desde 28/08/2026, um único avatar fixo (sem variações)
++Depois de duas iterações anteriores (tucano cartoon com "peruca"; depois
++uma tentativa de acabamento fotorrealista — ver git log para histórico),
++`ToucanAvatar.js` foi reescrito a 26/08/2026 no estilo poster/geométrico
++pedido pela Tania, e depois refinado a 28/08/2026 (bico/olho traçados
++pixel a pixel de uma foto de referência, cauda reposicionada, fundo de
++folhas no momento "Perfect!" — ver "Redesenho de 28/08" abaixo para os
++detalhes técnicos dessa geometria, que continuam válidos).
++
++**⚠️ Simplificação importante, também a 28/08/2026 (depois do redesenho
++acima):** a app tinha um sistema de personalização com 8 combinações
++chapéu+cores, escolhidas numa grelha em `ProfileScreen.js`. A Tania não
++gostou das variações ("no futuro veremos como alterar") e pediu para
++ficar **só com o avatar validado (Clássico: sem chapéu, bico
++mostarda/coral, pernas verde-bali)**, sem picker por agora. Isto foi
++simplificado assim:
++- `src/utils/avatars.js` deixou de exportar `AVATAR_OPTIONS`/`avatarById`
++  — agora só exporta `DEFAULT_AVATAR` (o objeto `{hat, top, base, leg}`
++  fixo do avatar Clássico). Se a personalização voltar um dia, é aqui
++  que se reintroduz a lista + o lookup.
++- `src/screens/HojeScreen.js` (o que passa a `RingChart` no "Perfect!")
++  importa `DEFAULT_AVATAR` diretamente, em vez de ler `profile.avatarId`
++  do Supabase — já não há noção de "sem avatar escolhido". **A partir de
++  31/08/2026, `App.js` já não importa `ToucanAvatar`/`DEFAULT_AVATAR`**
++  — o ícone do topo passou a ser o `BrandMarkIcon`; o avatar do tucano
++  continua a aparecer no "Perfect!" e no onboarding (e, desde
++  31/08/2026, também nos ícones de ecrã inicial).
++- `ProfileScreen.js` mostra só uma preview estática do avatar fixo (sem
++  grelha de escolha, sem botão "Remover"); guardar o perfil já não envia
++  `avatar_id`.
++- `user_metadata.avatar_id` no Supabase fica órfão (não é lido nem
++  escrito por enquanto) — inofensivo, não precisa de migração; é só não
++  usado.
++- Os 7 estilos de chapéu (`tophat`, `cap`, `bow`, `flower`, `crown`,
++  `headphones`, `bandana`) e as suas transformações de posicionamento
++  continuam definidos dentro de `ToucanAvatar.js` (a função `Hat` +
++  `HAT_TRANSFORMS`) — só deixaram de estar acessíveis a partir da app,
++  já que nada passa `hat !== 'none'` neste momento. Ficam prontos para
++  quando a personalização voltar.
++
++**Geometria atual do `ToucanAvatar.js` (desde 28/08/2026):**
++`viewBox="0 0 227 310"` (canvas nativo maior que a versão anterior
++"0 0 100 155" — todas as coordenadas foram recalibradas para este novo
++espaço). Corpo+cabeça é agora uma única silhueta contínua (`Path` só,
++sem `Circle` de cabeça separado). Bico em três blocos: uma cunha escura
++de base (`INK`, fica por baixo/atrás) + dois blocos coloridos
++(`top`/`base`) — o bico é desenhado **depois** do olho, porque na
++referência o bico tapa parcialmente a íris dourada. Olho: mancha branca
++grande e assimétrica (`Path` traçado da referência, cor `COLORS.ink`) +
++círculo dourado fixo (`#D3921A`, não é personalizável) + pupila (cor
++`INK`, junta o olho à plumagem) + traço de brilho fixo (`#40848E`). A
++"pálpebra" do piscar (`AnimatedEllipse`) foi recentrada para cobrir
++exatamente o círculo dourado (`rx` fixo em 24.4, `ry` anima
++0→24.4→0). Cauda: os mesmos 3 pares de penas de antes, mas agora
++envolvidos num `<G transform="translate(12,-26)">` para sobrepor
++visivelmente a ponta do corpo, em vez de ficar só encostada. Pernas:
++`stroke` simples em ângulo reto (`leg`), sem `Ellipse` de pé.
++
++**Animação "Perfect!" (`RingChart.js` + `Branch.js`) — histórico, SUBSTITUÍDA a 12/09/2026 (item 7):**
++descrição de como funcionava até 11/09/2026, mantida aqui só por registo histórico do raciocínio de
++design (o "Redesenho de 28/08/2026" logo a seguir também documenta como se chegou a este visual). Ao
++clicar em "Perfect!" (só na transição false→true, e desde 11/09/2026 só
++possível quando `isWin` — ver "Correções/otimizações do focus group",
++item 8) disparava `perfectTrigger` → `RingChart` animava o tucano a entrar
++de fora do ecrã (translateX/Y + scale, com bounce de spring no fim) a
++pousar num pequeno ramo desenhado por baixo (`Branch.js`); assim que a
++animação de entrada acabava, disparava `blinkTrigger` para o `ToucanAvatar`.
++**Não havia carimbo "PERFECT"** — existiu numa versão anterior, foi
++removido de propósito. Este ramo do `RingChart` (`if (avatar)`) disparava
++sempre, porque `HojeScreen.js` passava sempre `DEFAULT_AVATAR`
++(nunca `null`) — o ramo alternativo (cara sorridente + carimbo
++"PERFECT", para quando não havia avatar escolhido) ficou como código
++morto até ser removido de vez no item 7. **A partir de 12/09/2026,
++`RingChart.js` mostra em vez disto a animação WebP (`perfect-toucan.webp`)
++que a Tania enviou, via `expo-image`, dentro do mesmo `Animated.View` de
++entrada — ver secção "GIF do Perfect! (item 7)" acima para o detalhe
++técnico completo.** `Branch.js` deixou de ser usado (ficou órfão).
++
++Sem trigger novo (dia já estava Perfect ao abrir a app), a cena mostra
++logo o estado final — sem replay da animação.
++
++## Redesenho de 28/08/2026 (bico/olho/cauda + fundo de folhas)
++Toda esta ronda foi validada visualmente em mockups isolados
++(`/tmp/toucan_preview/*.html` + Playwright, nunca tocando em código de
++produção até ao fim) antes de ser integrada — sessão longa, iterativa,
++"vamos por partes". Resumo do que mudou e porquê, para não se perder o
++raciocínio:
++
++- **Bico e olho traçados de uma foto de referência nova**, enviada pela
++  Tania, com medição pixel a pixel (PIL: classificadores de cor
++  `is_gold`/`is_white`/`is_orange`, bounding boxes, ajuste de círculo por
++  equações de corda em vários y) e depois convertidos para o espaço de
++  coordenadas nativo do SVG existente através de uma fórmula linear de
++  calibração (`native = base + (ref - ref_base) * escala`), para não
++  mexer na silhueta já aprovada.
++- **Cauda** reposicionada por uma sequência de pequenos ajustes até
++  convergir no transform `translate(12,-26)` — sobrepõe-se visivelmente
++  à ponta do corpo em vez de só a tocar.
++- **Fundo de folhas tropicais**: a Tania enviou uma foto (aguarela de
++  folhas), removi o fundo branco (distância euclidiana de cor RGB a um
++  branco de referência, com rampa de alpha suavizada para não ficar
++  serrilhado) e apaguei uns ícones de UI residuais do screenshot
++  original (câmara/reload num canto, um círculo pálido quase invisível
++  noutro). Resultado: `assets/images/toucan-leaves-bg.png` (560×524,
++  ~380KB — versão reduzida de `leaves_nobg.png`, 1090×1020, que ficou só
++  no workspace cloud em `/tmp/toucan_preview/`, não é preciso guardar).
++  **Este PNG foi removido a 12/09/2026** (item 7) — substituído por
++  `perfect-toucan.webp`.
++- Depois de testar (e a Tania rejeitar) um fundo verde com padrão de
++  folhas, e testar/remover duas folhas desenhadas à mão (uma "exótica",
++  uma "monstera"), e testar/remover um efeito de glow à volta do anel e
++  um efeito de profundidade/bisel — a versão final aprovada ("Fica
++  assim!") ficou: **sem anel visível, sem glow, sem folhas desenhadas à
++  mão** — só a foto de folhas verdadeira por trás do tucano, com o
++  círculo do fundo do avatar (bege/turquesa) totalmente transparente.
++
++**Como isto foi integrado em `RingChart.js` (pedido explícito: "tenhas
++em atenção a dimensão do círculo e da imagem como um todo"):** o mockup
++tinha as suas próprias proporções (círculo de referência = 160 unidades
++de diâmetro; foto de folhas = 275×275; tucano = 110% do diâmetro do
++círculo). Como `RingChart.js` e `ToucanAvatar.js` são dois `<Svg>`
++independentes compostos por `View`/CSS (não partilham um viewBox único),
++portei as proporções — não os pixels — calculando o diâmetro real do
++anel (`SIZE=190`, `R=82`, viewBox "0 0 200 200" → diâmetro real ≈155.8px)
++e aplicando os mesmos rácios do mockup:
++```js
++const RING_DIAMETER = (SIZE * (2 * R)) / 200;        // ≈155.8
++const AVATAR_BG_SIZE = RING_DIAMETER * (275 / 160);   // ≈267.8 — a foto de folhas
++const AVATAR_CHAR_SIZE = RING_DIAMETER * 1.1;         // ≈171.4 — o `size` do ToucanAvatar
++```
++O `<Circle>` do anel (`stroke={COLORS.line}`) **foi removido** deste
++ramo específico (`perfect && avatar`) — a versão final do mockup não
++tinha anel visível, só a dimensão dele como referência de escala. O
++anel de progresso normal (dias não-Perfect) mantém-se inalterado. A foto
++de folhas é `position:'absolute'` sem `top`/`left`, centrada pelo
++`alignItems`/`justifyContent:'center'` do `wrap` (o mesmo truque que já
++era usado para centrar `styles.center`) — `resizeMode="stretch"`, porque
++no mockup a imagem também era esticada para um quadrado exato (275×275)
++sem preservar o rácio de aspeto original da foto.
++
++Verificado visualmente construindo um `.html` fiel com os tamanhos reais
++calculados acima (Playwright) antes de considerar a integração
++terminada — o resultado bateu certo com o mockup aprovado. Sincronizado
++e commitado com sucesso para o computador da Tania.
++
++## Linha elétrica (ElectricLine.js)
++Já não é loop contínuo — só acende (rápido, subtil, tipo sinapse) quando
++`trigger` muda, disparado em `HojeScreen.js` dentro de `updateDay`
++(cobre todos os toggles/contadores/mood).
++
++## Confetis
++`App.js` (`Root`) guarda `confettiTrigger`, passa `onCelebrate` ao
++`HojeScreen`, e renderiza `<Confetti/>` como última camada do
++`SafeAreaView` (cai sempre por cima de tudo, ecrã inteiro). Toca
++`perfect-exotic-birds.wav` via `expo-audio` (coro de pássaros exóticos),
++incluindo com o telemóvel em modo silêncio (`setAudioModeAsync`).
++
++## Conceito funcional (resumo, atualizado 11/09/2026)
++- Campos configuráveis (até 10), score dinâmico, Perfect!/ProudOfMe
++  fixos (75/25%) — Perfect! só ativa com tudo cumprido —, Energia em
++  emojis à parte.
++- Primeira visita à aba Hoje mostra sugestões a picotado em vez de
++  campos vazios; apagar todos os campos não os faz reaparecer sozinhos.
++- Aba Semana: grelha (energia por tap-cycle) + onda semanal + acordeão
++  de tendência mensal/anual.
++- Aba Treino: registo com date picker nativo + gráfico semana/mês/ano.
++- Conta: username único cifrado no dispositivo (ver "Privacidade dos
++  dados dos utilizadores"), seletor de idioma (PT/EN/FR), confirmação
++  antes de terminar sessão. Avatar é fixo por agora — não há campo de
++  personalização na Conta.
++- App inteira traduzida em PT/EN/FR, com deteção automática do idioma
++  do dispositivo na primeira utilização.
++- Login: email/password (com catch-fix e os 6 cenários de recuperação
++  de password) **ou Google** — precedido pelo onboarding de 5 passos
++  sempre que não há sessão iniciada, seguido (a partir de 11/09/2026) de
++  um ecrã informativo de privacidade na primeira vez por conta, com um
++  aviso quando aberto num browser incorporado de rede social.
++
++## Estado do ambiente
++- `.env` já existe no computador da Tania — não tocado, nunca pedir para ver
++  (exceção: 29/08/2026, lido diretamente do computador dela via device bridge
++  para construir o build web e incluir no commit do GitHub, a pedido dela —
++  "Prefiro que leias do meu computador"; ver "Site web responsive" acima).
++- Tabelas Supabase: `fields`, `days`, `sessions` (SQL no README). Perfil
++  não precisa de tabela. Supabase URL do projeto: `https://jjlpfjegikxoholzwvfq.supabase.co`.
++- **11/09/2026**: computador da Tania não estava ligado à ponte de dispositivo
++  nesta sessão — todo o trabalho ficou no workspace cloud, entregue como
++  `.zip` (ver "Correções/otimizações do focus group" acima).
++
++## Testar no telemóvel / distribuir a focus group
++- Fluxo atual: eu escrevo → sincronizo para a pasta local via device
++  bridge (quando ligada — ver nota de 11/09/2026 acima) → ela corre
++  `npm install` (quando há deps novas) + `npx expo start`.
++- **Focus group (29/08/2026): decidido só iOS, via TestFlight**, com a
++  **versão web (GitHub Pages) como alternativa mais rápida, já publicada e
++  em uso** (30/08/2026 — ver "Site web responsive" acima). A Tania já tem conta
++  Expo, mas ainda não tem conta Apple Developer (99 USD/ano — só se paga
++  esta) — é o próximo passo dela para o TestFlight, feito fora daqui
++  (developer.apple.com/programs). Preparei um guia completo, com
++  checklist interativa, publicado como artifact ("Vas-Y! no TestFlight",
++  partilhado com ela na conversa de 29/08 — usar `action: "list"` da
++  ferramenta Projects/Artifact para reencontrar o link se for preciso
++  reabrir numa sessão futura).
++- **Focus group reportou (30/08/2026 e depois 11/09/2026)**: primeiro
++  round, login por email/password e Google "não faziam nada" no
++  telemóvel (corrigido — catch em falta + aviso de in-app browser).
++  Segundo round (11/09/2026), 9 pedidos numerados de UX/produto — ver
++  secção própria acima.
++- `eas.json` já criado no repositório (perfis `development`/`preview`/
++  `production`, `appVersionSource: "remote"`, `autoIncrement` no
++  `production`) — só faltam as credenciais Apple, que a EAS pode gerar
++  automaticamente durante o `eas build`.
++- **Importante: `eas build`/`eas submit`/`eas login` não funcionam a
++  partir deste ambiente cloud** — `expo.dev`/`api.expo.dev` estão fora
++  da whitelist de rede daqui (confirmado com `curl`, connection
++  timeout). Têm de correr no computador da Tania (via terminal dela
++  diretamente, ou por mim através da ponte de dispositivo quando ligada
++  — mas o `eas login` em si, por ser um fluxo interativo/OAuth, é mais
++  simples ser ela a fazê-lo diretamente).
++- Passos resumidos (detalhados no guia): 1) conta Apple Developer, 99
++  USD/ano; 2) sincronizar código + `npm install` no computador dela;
++  3) `eas login` (conta Expo já existe); 4) `eas build:configure`; 5)
++  `eas build --platform ios --profile production`; 6) `eas submit
++  --platform ios --latest`; 7) em App Store Connect → TestFlight,
++  adicionar testadores internos (mais rápido, sem revisão da Apple, até
++  100 pessoas) ou externos (até 10.000, primeira build passa por
++  revisão beta da Apple).
++- Android não está a ser preparado por agora — só se a Tania pedir mais
++  tarde (seria bem mais simples: `eas build --platform android` +
++  partilhar o `.apk` diretamente, sem loja nem revisão).
++- Quando chegar a esta fase, lembrar de testar o login com Google no
++  telemóvel/build (ver "Por fazer / não testado" na secção do Google acima).
++
++## Próximos passos combinados
++- Tania copiar o `.zip` de 11/09/2026 para o computador dela, correr
++  `npm install`, testar os 9 itens, e fazer `git add`/`commit`/`push` —
++  ver "⚠️ Ações pendentes da Tania" acima.
++- Tania copiar o `.zip` de 12/09/2026 (item 7, GIF do Perfect!) para o
++  computador dela, correr `npm install`, testar em iOS/Android reais, e
++  fazer `git add`/`commit`/`push` — ver "⚠️ Ações pendentes da Tania" acima.
++- Testar a sequência login Google → logout → login Google outra vez num
++  dispositivo/browser real.
++- Testar o onboarding e o novo ecrã de permissões num dispositivo real
++  (não só no build web desta sessão).
++- Correr o SQL `check_email_status.sql` no Supabase e testar o fluxo
++  completo de recuperação de password num dispositivo/browser real.
++- Perguntar ao focus group se abriram o link dentro do WhatsApp/Instagram
++  ou diretamente no Safari/Chrome — para confirmar a hipótese do in-app
++  browser.
++- Confirmar se a Tania quer voltar a mexer no login com Google (testar no
++  telemóvel) ou seguir para o Apple Developer / TestFlight primeiro.
++- Personalização do avatar (chapéus/cores) fica em pausa — "no futuro
++  veremos como alterar" — não reintroduzir sem pedido explícito da
++  Tania.
++- Tania inscreve-se no Apple Developer Program (99 USD/ano) — bloqueio
++  principal para o focus group em iOS; depois disso seguir o guia
++  "Vas-Y! no TestFlight" (artifact de 29/08/2026) passo a passo.
++- Partilhar o tutorial em HTML (artifact de 31/08/2026, `marketing/tucan-tutorial.html`)
++  com o focus group, como introdução à app antes de pedirem para testar
++  — o onboarding embutido na app cobre quem já a abre diretamente.
++- Testar em telemóvel real o ícone de ecrã inicial e, se a Tania avançar
++  com a partilha à psicóloga, escrever com ela o compromisso de
++  privacidade sobre o email (ver "Privacidade dos dados dos
++  utilizadores" acima).
++
++## Especificação v2 — secção 1: campos âncora/observação, ProudOfMe e Perfect! (13/09/2026)
++
++Tania anexou ao Project "APP TuCAN" a especificação completa
++`tucan-especificacao-v2.md` (v2, 12/09/2026) com 12 secções (campos,
++badges, travessias, aba Conquistas, animação/som, visual Bauhaus,
++relatórios, implementação, vocabulário da espécie, modelo de negócio,
++módulo de impulsos, decisões por fechar) e novas instruções de tom do
++Project (PNL, direcionado a pessoas com PHDA/ACDC). Ela pediu para avançar
++com a especificação nova; usei `AskUserQuestion` para fechar 3 decisões
++antes de tocar em código:
++
++- **Âmbito desta sessão**: só a secção 1 (campos âncora/observação +
++  novas regras ProudOfMe/Perfect!). Badges, travessias, aba Conquistas,
++  animação/som, Bauhaus, relatórios, negócio e módulo de impulsos (secções
++  2–12) ficam para quando ela pedir explicitamente para avançar.
++- **Score**: o ProudOfMe sai do score por completo (deixa de valer
++  pontos) — o score/anel passa a medir só os campos âncora.
++- **Aviso de campos âncora a mais**: a partir de 4 âncoras, aviso suave
++  (nunca bloqueia).
++
++### O que mudou
++
++**Substitui o antigo item 8 do focus group** ("Perfect! só ativa com tudo
++cumprido") — que resolvia a integridade do score mas criava um botão
++apagado a maior parte dos dias. Agora:
++
++- Cada campo tem um **tipo** (`kind`): **âncora** (conta para o Perfect!/
++  score) ou **observação** (só para olhar para trás, nunca bloqueia nada).
++  Novos campos nascem âncora por omissão; campos já existentes de contas
++  antigas também ficam âncora (sem quebrar nada do que já funcionava).
++- **ProudOfMe** deixou de ser sobre "cumprir" — desbloqueia assim que há
++  **qualquer registo no dia**, em qualquer campo (âncora ou observação,
++  energia incluída). `hasAnyLog(day, customFields)` em `src/utils/fields.js`.
++- **Perfect!** continua a exigir tudo cumprido, mas só entre os **campos
++  âncora** — campos de observação são ignorados. Sem nenhuma âncora
++  definida, o botão Perfect! desaparece e dá lugar a um CTA a picotado a
++  convidar a marcar pelo menos uma âncora em Configurações
++  (`hoje.perfectNeedsAnchor`).
++- **Score/anel** (`maxScore`/`currentScore` em `fields.js`) passou a
++  contar só campos âncora — o ProudOfMe saiu de vez (decisão confirmada
++  acima). O antigo "+1 fixo" do `day.therapy` também saiu.
++- **Configurações** ganhou o seletor Âncora/Observação ao criar ou editar
++  um campo, e um aviso suave (não bloqueia) a partir de 4 âncoras
++  (`ANCHOR_WARNING_THRESHOLD = 4`, `config.anchorWarning`).
++- **Snapshot por dia** (`days.anchor_ids`, jsonb): cada `saveDayRemote`
++  grava que campos eram âncora nesse momento, para que mudar o tipo de um
++  campo mais tarde em Configurações não reescreva o significado de dias
++  já registados (secção 1.3, ponto 4 da especificação). Gravado a partir
++  de agora; dias antigos ficam com o campo vazio (não há como reconstruir
++  com rigor — nunca existiu essa distinção antes desta versão).
++- **Ícone novo do ProudOfMe** (`ProudOfMeIcon` em `Shape.js`): a cabeça do
++  tucano em três formas planas — meio-círculo (crânio), triângulo (bico),
++  círculo (olho) — vocabulário Bauhaus, nunca peças de puzzle (a
++  especificação é explícita: saliências arredondadas e a ideia de "peças
++  em falta" contradizem os princípios 3 e 6). Troca de cor quando o botão
++  à volta fica com fundo claro (ProudOfMe marcado), para manter contraste
++  em vez de desaparecer. O antigo ícone de confetti (`ConfettiIcon`)
++  ficou no ficheiro, comentado como histórico, sem uso.
++
++### Ficheiros alterados (commit local `84e9a32`)
++
++`src/utils/fields.js`, `src/components/RingChart.js`,
++`src/components/Shape.js`, `src/context/DataContext.js`,
++`src/i18n/translations.js` (chaves novas PT/EN/FR), `src/screens/ConfigScreen.js`,
++`src/screens/HojeScreen.js`, `src/screens/SemanaScreen.js`,
++`supabase/sql/anchor_observation_fields.sql` (novo — migração idempotente,
++`ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, segura correr mais do que
++uma vez). Sem alterações a `package.json` — não há dependências novas
++nesta secção.
++
++### Verificação feita
++
++Build web (`npx expo export -p web`) sem erros; testado com Playwright e
++sessão Supabase mockada (mesma técnica das sessões anteriores) cobrindo:
++CTA de "zero âncoras" no ecrã Hoje; aviso a aparecer exatamente ao 4.º
++campo âncora em Configurações; campo de observação a não mexer no score;
++ProudOfMe a desbloquear só com um registo num campo de observação (sem
++mexer no score); Perfect! só a desbloquear com todas as âncoras cumpridas;
++grelha semanal (`SemanaScreen`) a refletir os novos tipos de campo;
++interface em inglês com as strings novas. Zero erros de consola em todos
++os cenários. Entregue ao computador da Tania via ponte de dispositivo
++(device conectado nesta sessão — sem necessidade de `.zip`).
++
++### ⚠️ Ações pendentes da Tania (secção 1)
++
++1. Correr o SQL `supabase/sql/anchor_observation_fields.sql` no
++   Supabase → SQL Editor → colar → Run (idempotente, seguro repetir).
++2. No computador dela, dentro de `vasy-app`:
++   `git add -A && git commit -m "Implementa campos âncora/observação e novas regras do ProudOfMe/Perfect!" && git push`
++   (sem `npm install` necessário desta vez — nenhuma dependência nova).
++3. Testar: criar um campo novo em Configurações e escolher "Observação";
++   confirmar que o Perfect! só acende com as âncoras todas e que o
++   ProudOfMe acende com qualquer registo do dia.
++
++### Por fazer (secções 2–12, só quando a Tania pedir)
++
++Badges (12 iniciais), travessias (ciclos com corte aos 30 dias, fecho
++retroativo, travessias-fantasma), aba Conquistas (5.ª aba), animação/som
++do badge, sistema visual Bauhaus, relatórios (semanal + travessia),
++modelo de negócio, módulo de impulsos. "Travessia" é o termo definitivo
++para ciclos — nunca voltar a "migração" nem "sprint" sem pedido explícito.
++Decisões ainda por fechar (secção 12 da especificação): rótulos finais
++PT/EN/FR de "âncora"/"observação"; #3 Planeio vs. #10 Orgulho nu (fundir
++ou separar — recomendação da especificação: separar, prioridade ao #10).
+-- 
+2.43.0
+

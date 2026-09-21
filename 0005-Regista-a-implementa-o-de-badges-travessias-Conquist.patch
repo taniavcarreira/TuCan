@@ -1,0 +1,116 @@
+From 114d2cc8143321145ff51bb6af8aba23cb24653b Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 19 Sep 2026 13:14:48 +0000
+Subject: [PATCH 5/7] =?UTF-8?q?Regista=20a=20implementa=C3=A7=C3=A3o=20de?=
+ =?UTF-8?q?=20badges/travessias/Conquistas=20no=20doc=20de=20contexto?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01MVcQo6j1LDjyQU3oxSNbxF
+---
+ claude/vasy-app-contexto.md | 90 ++++++++++++++++++++++++++++++++-----
+ 1 file changed, 80 insertions(+), 10 deletions(-)
+
+diff --git a/claude/vasy-app-contexto.md b/claude/vasy-app-contexto.md
+index 30a1060..3eb75de 100644
+--- a/claude/vasy-app-contexto.md
++++ b/claude/vasy-app-contexto.md
+@@ -675,13 +675,83 @@ Falta confirmar com ela: se já correu o SQL
+ `kind`/`anchor_ids` não existem na BD e o upsert de campos/dias falha
+ em silêncio ou cai sempre em "anchor" por omissão).
+ 
+-### Por fazer (secções 2–12, só quando a Tania pedir)
+-
+-Badges (12 iniciais), travessias (ciclos com corte aos 30 dias, fecho
+-retroativo, travessias-fantasma), aba Conquistas (5.ª aba), animação/som
+-do badge, sistema visual Bauhaus, relatórios (semanal + travessia),
+-modelo de negócio, módulo de impulsos. "Travessia" é o termo definitivo
+-para ciclos — nunca voltar a "migração" nem "sprint" sem pedido explícito.
+-Decisões ainda por fechar (secção 12 da especificação): rótulos finais
+-PT/EN/FR de "âncora"/"observação"; #3 Planeio vs. #10 Orgulho nu (fundir
+-ou separar — recomendação da especificação: separar, prioridade ao #10).
++### Investigação Duolingo/YaZio — 18/09/2026
++
++Antes de implementar badges/travessias, a Tania pediu para olhar para o
++Duolingo e o YaZio e perceber a gamificação deles. Documento completo em
++`claude/tucan-badges-inspiracao-duolingo-yazio.md` (persistido também no
++Project). Conclusão: o desenho já aprovado na especificação v2 (secções
++2/3) já evita os problemas pelos quais as duas apps estão a ser
++criticadas publicamente (barra de progresso em badges por ganhar, streak
++freeze/repair comprado, apostas explícitas, ícone "morto" quando quebra).
++Proposta aceite sem alterações ao desenho — só confirmar a implementação
++tal como estava especificada.
++
++### Implementado — badges, travessias e aba Conquistas (19/09/2026)
++
++Secções 2–6 da especificação v2 implementadas de uma vez, com o ok da
++Tania (`"Podes avançar com a implementação dos badges"`). Duas perguntas
++de âmbito foram-lhe colocadas antes de começar e as respostas moldaram a
++implementação:
++
++1. **Badge #7 "Salto"** dependia de um "modo mini (1%)" que não existe na
++   app. Ela escolheu **aproximar com o que já existe**: conta como
++   "salto" um dia em que um campo de contagem foi registado com o valor
++   mínimo possível (≤ ao seu `step`) sem chegar à meta.
++2. **Animação e som do badge (secção 5)** — ela escolheu **incluir logo
++   nesta entrega**, não deixar para depois.
++
++**Ficheiros novos:**
++- `src/utils/badges.js` — avaliação pura de badges/travessias a partir
++  do histórico de `days`. 12 badges (`BADGE_DEFS`), prioridade #10
++  Orgulho nu > #3 Planeio quando ambos batem no mesmo dia (recomendação
++  "(b) Separar" da própria especificação). `mergeGhostCycles` para
++  quando os relatórios (secção 7) forem construídos.
++- `src/components/BadgeIcon.js` — medalhas Bauhaus (círculo 88px fundo
++  ink + composição geométrica), cores por fase (mostarda/coral/água/
++  azul — `COLORS.azul` novo em `theme.js`, fecha o trio Bauhaus).
++- `src/components/BadgeCelebration.js` — coreografia ~1,4s + 2s de
++  permanência (tucano entra, medalha desce, nome aparece, dissolve),
++  reaproveitando `ToucanAvatar`. Overlay global em `App.js`, ao lado do
++  `Confetti`.
++- `scripts/make_badge_toc.py` → `assets/sounds/badge-toc.wav` (~1s,
++  assobio + "toc" percussivo, mesmo timbre do coro do Perfect! mas mais
++  curto — nunca toca ao mesmo tempo que o Perfect!, só a medalha
++  aparece em silêncio nesse caso).
++- `src/screens/ConquistasScreen.js` — 5.ª aba do `BottomNav`: coleção
++  (grid 3 colunas, ordenada por mais recente), linha do tempo, acordeão
++  diário, modal de histórico por badge. Banner "Travessia atual" no
++  topo. Nunca mostra badges por ganhar (princípio 3).
++- `supabase/sql/badges_cycles.sql` — tabelas `cycles`/`badges` com RLS
++  + coluna nova `days.first_logged_at` (carimbo real de quando o dia
++  foi tocado pela 1ª vez, usado no badge #5 "Primeira fruta" — só conta
++  a partir de agora, sem histórico anterior a esta versão).
++
++**Ficheiros alterados:** `App.js` (tab + overlay), `BottomNav.js` (5º
++ícone), `DataContext.js` (`syncBadgesAndCycles` roda depois de cada
++`saveToday`/`saveWeek`; preferência de som `badgeSoundEnabled` via
++AsyncStorage), `ProfileScreen.js` (Switch "Som dos badges"),
++`translations.js` (nomes/descrições dos 12 badges + aba Conquistas,
++PT/EN/FR), `dates.js` (`fmtLongDate` — "12 de setembro").
++
++Testado com Playwright (sessão Supabase mockada + histórico sintético de
++`days`): coleção, linha do tempo, acordeão e modal de histórico todos
++corretos em PT e EN, zero erros de consola no build de produção.
++
++**Por fazer a seguir (só quando ela pedir):** relatórios (semanal +
++travessia, secção 7), modelo de negócio, módulo de impulsos. Decisão
++ainda por fechar da secção 12: rótulos finais PT/EN/FR de "âncora"/
++"observação" (já funciona, só falta reconfirmar o texto). E, assim que
++isto ficar fechado com ela, **lembrar de propor** o calendário de
++visualização resumida do progresso tipo YaZio com botão de partilha —
++pedido explícito dela para depois desta entrega.
++
++### ⚠️ Ações pendentes da Tania (badges/travessias/Conquistas)
++
++1. Correr o SQL `supabase/sql/badges_cycles.sql` no Supabase → SQL
++   Editor → colar → Run (idempotente).
++2. No computador dela: `git add -A && git commit -m "..." && git push`.
++3. Testar: marcar um campo pela primeira vez (deve aparecer "Primeira
++   batida"), abrir a aba Conquistas, tocar num badge para ver o
++   histórico. Confirmar que o som do badge é audível e que dá para o
++   desligar em Perfil.
+-- 
+2.43.0
+

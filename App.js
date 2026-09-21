@@ -27,6 +27,7 @@ import BottomNav from './src/components/BottomNav';
 import Confetti from './src/components/Confetti';
 import BadgeCelebration from './src/components/BadgeCelebration';
 import InAppBrowserBanner from './src/components/InAppBrowserBanner';
+import SaveErrorBanner from './src/components/SaveErrorBanner';
 import BrandMarkIcon from './src/components/BrandMarkIcon';
 import ConfirmModal from './src/components/ConfirmModal';
 
@@ -128,42 +129,61 @@ function Root() {
   const { t } = useLanguage();
   const celebrate = () => setConfettiTrigger(Date.now());
 
+  // O aviso de gravação por confirmar (SaveErrorBanner) é renderizado
+  // uma única vez, fora de todos os ramos abaixo, para se manter
+  // visível esteja a pessoa onde estiver (Hoje/Semana/Config/Perfil/
+  // Calendário) — um registo por enviar interessa em qualquer ecrã, não
+  // só no principal.
   if (!ready) {
     return (
-      <View style={styles.loading}>
-        <ActivityIndicator color={COLORS.electro} size="large" />
-      </View>
+      <>
+        <SaveErrorBanner />
+        <View style={styles.loading}>
+          <ActivityIndicator color={COLORS.electro} size="large" />
+        </View>
+      </>
     );
   }
 
   if (profileOpen) {
     return (
-      <SafeAreaView style={styles.safe}>
-        <StatusBar style="light" />
-        <ProfileScreen onClose={() => setProfileOpen(false)} />
-      </SafeAreaView>
+      <>
+        <SaveErrorBanner />
+        <SafeAreaView style={styles.safe}>
+          <StatusBar style="light" />
+          <ProfileScreen onClose={() => setProfileOpen(false)} />
+        </SafeAreaView>
+      </>
     );
   }
 
   if (configOpen) {
     return (
-      <SafeAreaView style={styles.safe}>
-        <StatusBar style="light" />
-        <ConfigScreen onClose={() => setConfigOpen(false)} />
-      </SafeAreaView>
+      <>
+        <SaveErrorBanner />
+        <SafeAreaView style={styles.safe}>
+          <StatusBar style="light" />
+          <ConfigScreen onClose={() => setConfigOpen(false)} />
+        </SafeAreaView>
+      </>
     );
   }
 
   if (calendarOpen) {
     return (
-      <SafeAreaView style={styles.safe}>
-        <StatusBar style="light" />
-        <CalendarShareScreen onClose={() => setCalendarOpen(false)} />
-      </SafeAreaView>
+      <>
+        <SaveErrorBanner />
+        <SafeAreaView style={styles.safe}>
+          <StatusBar style="light" />
+          <CalendarShareScreen onClose={() => setCalendarOpen(false)} />
+        </SafeAreaView>
+      </>
     );
   }
 
   return (
+    <>
+    <SaveErrorBanner />
     <SafeAreaView style={styles.safe}>
       <StatusBar style="light" />
       <View style={styles.topbar}>
@@ -213,6 +233,7 @@ function Root() {
         onConfirm={() => { setSignOutConfirmOpen(false); supabase.auth.signOut(); }}
       />
     </SafeAreaView>
+    </>
   );
 }
 

@@ -1,0 +1,241 @@
+From 5a4d58b7dac516c68f38ad42867521d36eaafd5b Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 18 Sep 2026 10:31:06 +0000
+Subject: [PATCH 3/7] =?UTF-8?q?Analisa=20Duolingo=20e=20YaZio=20para=20inf?=
+ =?UTF-8?q?ormar=20a=20implementa=C3=A7=C3=A3o=20de=20badges/travessias?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01MVcQo6j1LDjyQU3oxSNbxF
+---
+ .../tucan-badges-inspiracao-duolingo-yazio.md | 216 ++++++++++++++++++
+ 1 file changed, 216 insertions(+)
+ create mode 100644 claude/tucan-badges-inspiracao-duolingo-yazio.md
+
+diff --git a/claude/tucan-badges-inspiracao-duolingo-yazio.md b/claude/tucan-badges-inspiracao-duolingo-yazio.md
+new file mode 100644
+index 0000000..9673e32
+--- /dev/null
++++ b/claude/tucan-badges-inspiracao-duolingo-yazio.md
+@@ -0,0 +1,216 @@
++# Badges, travessias e aba Conquistas — o que roubar ao Duolingo e ao YaZio (e o que não)
++
++**Data:** 18/09/2026
++**Pedido da Tania:** analisar como o Duolingo e o YaZio implementam gamificação
++(streaks, badges, conquistas) antes de avançar para a secção 2 da
++especificação v2 (badges, travessias, aba Conquistas).
++**Estado:** proposta para discussão — nada disto está implementado ainda.
++
++---
++
++## 0. Como li isto
++
++Fui ver como as duas apps mais bem-sucedidas do género fazem — uma de
++línguas (Duolingo), uma de nutrição (YaZio, portanto mais próxima do
++território sensível da TuCAN: compulsão alimentar, PHDA). Para cada
++mecânica, pergunto uma coisa só: **isto passa nos 7 princípios da secção
++0 da nossa especificação, ou não passa?** Quando não passa, digo
++explicitamente que não deve ser copiado, e porquê — porque é fácil, ao
++"inspirarmo-nos" numa app de sucesso, copiar também o que a torna
++psicologicamente pesada.
++
++A conclusão adiantada, para não enterrar a informação: **o desenho que já
++tínhamos na secção 2/3 da especificação está, em quase tudo, mais à
++frente do que as duas apps** — porque foi pensado a partir do clínico
++para a fora, e não do "engagement" para a fora. Isto não é wishful
++thinking meu: as próprias apps estão a receber críticas públicas
++exactamente pelos pontos que os nossos princípios já bloqueiam.
++
++---
++
++## 1. Duolingo — o que encontrei
++
++### Streak
++
++- Conta-se um dia de streak por **completar uma lição** (com um mínimo de
++  XP) antes da meia-noite do fuso horário da conta. Abrir a app sem
++  terminar uma lição não conta.
++- **Quebra a zero** se não cumprires o dia — a menos que tenhas comprado
++  proteção antecipadamente.
++- **Streak Freeze**: compra-se com gemas (moeda do jogo, mas cada vez
++  mais empurrada para compra com dinheiro real — o preço subiu no iOS).
++  Protege um dia perdido, comprado *antes* de precisar dele.
++- **Streak Repair**: se a streak já quebrou, dá para a **restaurar
++  retroativamente** pagando ou vendo um anúncio. Ou seja: tratam a
++  quebra como uma perda a comprar de volta, não como algo que se
++  reenquadra.
++- **"Double or Nothing"**: aposta explícita — mantém a streak 7 dias e
++  ganhas gemas; a linguagem do próprio nome é de jogo de azar.
++- Marcos a cada 10 dias dão recompensa; 100 dias dá Plus grátis por 3
++  dias; 365 dias tem o seu próprio badge ("Wildfire").
++
++### Achievements (badges)
++
++- Cerca de 15-17 badges, a maioria com **5 a 10 níveis** (bronze → ouro),
++  ex.: "Regal" (100 coroas, 10 níveis), "Sharpshooter" (100 lições sem
++  erros, 5 níveis).
++- Agrupados por dificuldade: badges de entrada (fáceis, ex. "Photogenic"
++  por pores uma foto de perfil), badges raros (streaks de um ano), e uma
++  categoria de **recordes pessoais** (mais XP num dia, streak mais
++  longa).
++- **Ponto crítico**: os badges por conquistar aparecem com **uma barra de
++  progresso a mostrar quão perto estás** — exactamente o "3 de 12" que o
++  princípio 3 da nossa especificação proíbe. O próprio blog do Duolingo
++  admite que o modelo antigo era "difícil de encontrar e mais difícil
++  ainda de celebrar" — e resolveram isso juntando tudo numa "prateleira
++  de troféus" no perfil, mas mantendo a barra de progresso dos badges
++  por ganhar.
++
++### O que a psicologia e a crítica pública dizem
++
++- O mecanismo central é **aversão à perda**: as pessoas sentem mais a dor
++  de perder uma streak do que o prazer de a manter. É isto que faz uma
++  streak de 100+ dias virar "marcador de identidade".
++- Isso tem um preço documentado: utilizadores descrevem "engagement
++  oco" — abrir a app só para não perder a streak, não para aprender.
++  Uma autora (Kopp, num artigo bastante partilhado) descreve a sua
++  streak de 400+ dias no Duolingo como "uma tarefa digital para manter,
++  não um hábito saudável — uma obrigação, uma caixa para marcar", e diz
++  que quando a perdeu por acidente se sentiu **liberta**.
++- O sistema de "energia" mais recente do Duolingo (que limita quantas
++  lições podes fazer sem pagar) é apontado como escassez artificial para
++  empurrar subscrições — motivação extrínseca a monetizar ansiedade.
++
++---
++
++## 2. YaZio — o que encontrei
++
++(Mais relevante para nós: é uma app de tracking de saúde, tal como a
++TuCAN, e lida com o mesmo território sensível de compulsão.)
++
++### Streak
++
++- Conta-se com **qualquer registo de comida nesse dia** — não precisa de
++  cumprir metas de calorias nem nada parecido. Isto é literalmente o
++  princípio 1 da nossa especificação ("recompensa o registar, nunca o
++  cumprir") já em produção numa app com milhões de utilizadores.
++- Quebra a zero se não registares nada nesse dia. **Não sincroniza entre
++  dispositivos**, e **entradas adicionadas em atraso não contam** para a
++  streak — regras mais duras do que as nossas, e que eu não copiaria (ver
++  secção 4).
++- **Streak Freeze** aqui é **ganho por consistência**, não comprado —
++  funciona como um "curinga" automático que perdoa um dia esquecido.
++- Mostrado como um **ícone de chama**: colorido quando ativa, **cinzento
++  quando quebra e volta a 0**.
++
++### Badges
++
++- Lista mais pequena e mais simples do que a do Duolingo: "Primeira
++  Entrada", "Streak de 7 dias", marcos de perda de peso. Sem níveis
++  complexos, sem grind.
++
++### O que não têm (de propósito)
++
++- **Sem leaderboard, sem comparação social.** O próprio estudo de caso
++  que li admite isto como uma lacuna de "engagement", mas reconhece que é
++  uma escolha deliberada dado quão sensível é competir sobre perda de
++  peso. É exactamente o princípio 4 da nossa especificação ("gamificar o
++  que a pessoa faz para si, nunca o que mostra a outro") — confirmado por
++  quem lida com o mesmo tipo de utilizador vulnerável que nós.
++
++---
++
++## 3. O que isto confirma que já tínhamos bem pensado
++
++Diria isto sem rodeios: a especificação v2 já tinha, sem eu ter visto
++ainda estas duas apps, resolvido os problemas que elas estão a apanhar
++criticismo por não resolverem.
++
++- **Nunca mostrar badges por ganhar** (só os já ganhos) — é precisamente
++  o oposto da barra de progresso do Duolingo, que é a parte mais criticada
++  do redesenho deles. Mantém-se como está.
++- **"Nova travessia", nunca "perdeste o progresso"** — é o oposto do
++  Streak Repair pago do Duolingo (pagar para desfazer uma perda) e do
++  ícone cinzento do YaZio (visual de "morreu"). O nosso corte de 30 dias
++  com fecho retroativo no último dia com registo já é, sozinho, uma
++  proteção **muito mais generosa** do que qualquer "streak freeze" das
++  duas apps — não precisamos de inventar um item para comprar ou ganhar,
++  a tolerância já está embutida na própria definição de travessia.
++- **Repetíveis com ×N que atravessam travessias** ("De volta ao oco
++  ×12") — é a nossa versão, mais terapêutica, dos "recordes pessoais" do
++  Duolingo, sem a pressão de streak única que se perde tudo de repente.
++- **Sem leaderboard, sem painel do clínico com medalhas** — confirmado
++  pelo próprio YaZio como a escolha certa para este tipo de utilizador.
++- **Continuar a travessia com qualquer registo do dia** (não com
++  "sucesso" no dia) — é literalmente a regra do streak do YaZio,
++  já embutida no nosso principio 1 e nas regras da secção 1
++  (ProudOfMe/âncora) que implementámos a semana passada.
++
++## 4. O que eu explicitamente NÃO traria para a TuCAN
++
++1. **Barra de progresso em badges por ganhar** ("3 de 12", "faltam 4 para
++   o próximo nível"). Viola o princípio 3. Mantemos: só aparecem os já
++   ganhos, uma coleção que cresce.
++2. **Comprar ou ganhar um "freeze"/"repair" para uma travessia
++   quebrada.** Não há nada para reparar — reenquadramos como travessia
++   nova. Introduzir um item de "proteção" narrativamente admite que
++   quebrar é uma falha, o que é o oposto do princípio 6.
++3. **Apostas explícitas tipo "Double or Nothing".** Linguagem de jogo de
++   azar, o oposto do tom que queremos para compulsão alimentar/compras.
++4. **Ícone que fica visualmente "morto" ou cinzento quando uma travessia
++   termina.** Mesmo que tecnicamente não seja uma barra vazia, é uma
++   pista visual de "isto falhou" — evitar em qualquer badge ou indicador
++   futuro relacionado com travessias.
++5. **Registos em atraso a não contarem para a travessia** (regra do
++   YaZio). A TuCAN já faz o oposto de propósito — "Semana" tem
++   "corrige em atraso" e o badge #3 "Planeio" existe para premiar
++   precisamente o registo tardio/imperfeito. Não alinhar com o YaZio
++   aqui.
++6. **Escassez artificial para empurrar subscrição** (o sistema de
++   "energia" do Duolingo). A TuCAN é grátis para o paciente, sempre —
++   já está fora de questão pelo modelo de negócio (secção 10), mas vale
++   reforçar: nenhuma mecânica de badges/travessias deve ficar atrás de
++   paywall.
++
++## 5. Uma ideia nova a considerar (não estava na v2)
++
++O conceito de **"recorde pessoal"** do Duolingo (mais XP num dia, streak
++mais longa) tem uma versão saudável possível para nós, **desde que nunca
++comparativa com outros e nunca com número em destaque**: quando uma
++travessia nova ultrapassa a duração da anterior, uma frase simples no
++relatório de travessia (já previsto na secção 7.2) — não um badge novo,
++não uma notificação, só uma linha de texto que já cabe no "Comparação
++com a travessia anterior" que a secção 7.2 já tinha desenhado. Ou seja:
++não é uma mecânica nova, é só confirmar que a secção 7.2 já cobre isto
++bem e não precisa de mais nada.
++
++Deixo isto como sugestão pequena, não como algo que precise de decisão
++tua agora — mais para não perdermos a ideia.
++
++## 6. Conclusão prática
++
++Não vejo nada nas duas apps que nos obrigue a mudar o desenho já
++aprovado da secção 2/3 (badges, travessias). O que muda é **confiança**:
++tanto o Duolingo como o YaZio validam, com utilizadores reais, as
++escolhas que já tínhamos feito — e as partes deles que decidimos não
++copiar são precisamente as partes que estão a ser criticadas em público
++agora mesmo (2025/2026), o que é um bom sinal de que os nossos princípios
++não são só teoria clínica, são também melhor produto a prazo.
++
++Proposta: avançar para a implementação da secção 2 (badges) e secção 3
++(travessias) exactamente como estão especificadas, sem alterações — só
++com a confirmação da ideia pequena da secção 5 acima (deixar a
++comparação de duração de travessias no relatório, sem badge extra).
++
++---
++
++## Fontes
++
++- [Streak | Duolingo Wiki](https://duolingo.fandom.com/wiki/Streak)
++- [Duolingo Streak Freeze - duoplanet](https://duoplanet.com/duolingo-streak-freeze/)
++- [Duolingo Achievements - The COMPLETE Guide - duoplanet](https://duoplanet.com/duolingo-achievements-guide/)
++- [achievement badges — blog.duolingo.com](https://blog.duolingo.com/achievement-badges)
++- [The Psychology Behind Duolingo's Streak Feature](https://www.justanotherpm.com/blog/the-psychology-behind-duolingos-streak-feature)
++- [Kill Your Streaks — Savannah Kopp](https://savannahkopp.substack.com/p/kill-your-streaks)
++- [Streak feature: Functionality and boost for your goals — YaZio Help Center](https://help.yazio.com/hc/en-us/articles/24629053698833-Streak-feature-Functionality-and-boost-for-your-goals)
++- [Yazio's Gamification Strategy: A Case Study — Trophy](https://trophy.so/blog/yazio-gamification-case-study)
+-- 
+2.43.0
+

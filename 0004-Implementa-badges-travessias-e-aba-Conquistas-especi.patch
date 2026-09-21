@@ -1,0 +1,2044 @@
+From b5b175271293982cca5072552d69ae8673333497 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 19 Sep 2026 13:13:41 +0000
+Subject: [PATCH 4/7] =?UTF-8?q?Implementa=20badges,=20travessias=20e=20aba?=
+ =?UTF-8?q?=20Conquistas=20(especifica=C3=A7=C3=A3o=20v2,=20sec=C3=A7?=
+ =?UTF-8?q?=C3=B5es=202-6)?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Badges: 12 medalhas (únicos renascem por travessia, repetíveis acumulam
+×N entre travessias), avaliadas em src/utils/badges.js a partir do
+histórico de `days` — prioridade explícita #10 Orgulho nu > #3 Planeio
+quando ambos batem no mesmo dia. Duas aproximações combinadas com a
+Tania (19/09/2026): badge #7 "Salto" usa um proxy de "registo mínimo"
+em campos de contagem em vez de um modo mini ainda por construir; #5
+"Primeira fruta" passa a depender de um novo carimbo `first_logged_at`
+em `days`.
+
+Travessias: corte de 30 dias sem registo, fecho retroativo ao último
+dia com registo, travessias-fantasma (<3 dias) fundidas na seguinte
+só na apresentação — nunca reescreve o que já foi gravado.
+
+Aba Conquistas (5.º ícone do BottomNav): coleção com contagem, linha
+do tempo, acordeão diário e histórico por badge, tudo Bauhaus (círculo/
+quadrado/triângulo/meio-círculo/arco) via BadgeIcon.js.
+
+Animação e som do badge (secção 5): BadgeCelebration.js reaproveita o
+ToucanAvatar e a coreografia de voo do RingChart; som sintetizado novo
+(scripts/make_badge_toc.py) mais curto que o do Perfect! para não
+competir com ele — quando coincidem, só o Perfect! soa. Preferência de
+som em Perfil (Switch), por omissão ligada.
+
+SQL: novas tabelas `cycles`/`badges` com RLS e a coluna
+`first_logged_at` em `days` (supabase/sql/badges_cycles.sql).
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01MVcQo6j1LDjyQU3oxSNbxF
+---
+ App.js                             |  10 +-
+ assets/sounds/badge-toc.wav        | Bin 0 -> 88244 bytes
+ scripts/make_badge_toc.py          |  95 +++++++++++
+ src/components/BadgeCelebration.js | 103 ++++++++++++
+ src/components/BadgeIcon.js        | 121 ++++++++++++++
+ src/components/BottomNav.js        |  15 +-
+ src/context/DataContext.js         | 157 +++++++++++++++++-
+ src/i18n/translations.js           |  43 +++++
+ src/screens/ConquistasScreen.js    | 234 ++++++++++++++++++++++++++
+ src/screens/ProfileScreen.js       |  16 +-
+ src/theme.js                       |   7 +
+ src/utils/badges.js                | 253 +++++++++++++++++++++++++++++
+ src/utils/dates.js                 |  10 ++
+ supabase/sql/badges_cycles.sql     |  66 ++++++++
+ 14 files changed, 1121 insertions(+), 9 deletions(-)
+ create mode 100644 assets/sounds/badge-toc.wav
+ create mode 100644 scripts/make_badge_toc.py
+ create mode 100644 src/components/BadgeCelebration.js
+ create mode 100644 src/components/BadgeIcon.js
+ create mode 100644 src/screens/ConquistasScreen.js
+ create mode 100644 src/utils/badges.js
+ create mode 100644 supabase/sql/badges_cycles.sql
+
+diff --git a/App.js b/App.js
+index 4a49e1e..27bf443 100644
+--- a/App.js
++++ b/App.js
+@@ -19,10 +19,12 @@ import PermissionsScreen from './src/screens/PermissionsScreen';
+ import HojeScreen from './src/screens/HojeScreen';
+ import SemanaScreen from './src/screens/SemanaScreen';
+ import TreinoScreen from './src/screens/TreinoScreen';
++import ConquistasScreen from './src/screens/ConquistasScreen';
+ import ConfigScreen from './src/screens/ConfigScreen';
+ import ProfileScreen from './src/screens/ProfileScreen';
+ import BottomNav from './src/components/BottomNav';
+ import Confetti from './src/components/Confetti';
++import BadgeCelebration from './src/components/BadgeCelebration';
+ import InAppBrowserBanner from './src/components/InAppBrowserBanner';
+ import BrandMarkIcon from './src/components/BrandMarkIcon';
+ import ConfirmModal from './src/components/ConfirmModal';
+@@ -120,7 +122,7 @@ function Root() {
+   const [profileOpen, setProfileOpen] = useState(false);
+   const [confettiTrigger, setConfettiTrigger] = useState(0);
+   const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
+-  const { ready, profile } = useData();
++  const { ready, profile, newBadgeEvent, badgeSoundEnabled } = useData();
+   const { t } = useLanguage();
+   const celebrate = () => setConfettiTrigger(Date.now());
+ 
+@@ -174,6 +176,7 @@ function Root() {
+         {tab === 'hoje' && <HojeScreen onCelebrate={celebrate} onOpenConfig={() => setConfigOpen(true)} />}
+         {tab === 'semana' && <SemanaScreen />}
+         {tab === 'treino' && <TreinoScreen />}
++        {tab === 'conquistas' && <ConquistasScreen />}
+       </View>
+ 
+       <BottomNav active={tab} onChange={setTab} />
+@@ -182,6 +185,11 @@ function Root() {
+           celebration always falls across the whole screen. */}
+       <View pointerEvents="none" style={styles.confettiLayer}>
+         <Confetti trigger={confettiTrigger} />
++        <BadgeCelebration
++          badge={newBadgeEvent ? { id: newBadgeEvent.badgeId, name: t(`badge.${newBadgeEvent.badgeId}.name`) } : null}
++          trigger={newBadgeEvent?.trigger}
++          muted={newBadgeEvent?.muted || !badgeSoundEnabled}
++        />
+       </View>
+ 
+       <ConfirmModal
+diff --git a/assets/sounds/badge-toc.wav b/assets/sounds/badge-toc.wav
+new file mode 100644
+index 0000000000000000000000000000000000000000..6a67e1a97c5344e7a46826d2d5926fa6d061c869
+GIT binary patch
+literal 88244
+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%0ACoQMiJF
+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
+
+literal 0
+HcmV?d00001
+
+diff --git a/scripts/make_badge_toc.py b/scripts/make_badge_toc.py
+new file mode 100644
+index 0000000..73e6e23
+--- /dev/null
++++ b/scripts/make_badge_toc.py
+@@ -0,0 +1,95 @@
++"""
++Gera o som de badge da TuCAN! — especificação v2, secção 5 (12/09/2026):
++"um acento, não uma celebração". Duração alvo: 0,8 a 1,2s, sempre a
++mesma para os 12 badges (sons diferentes criam hierarquia, o que a
++especificação proíbe).
++
++Composição:
++  1. Assobio ascendente único, no mesmo timbre do coro do Perfect!
++     (reaproveita a função `whistle()` de make_exotic_birds_call.py,
++     mas com uma nota só em vez de uma frase inteira).
++  2. Toque percussivo seco no impacto — "toc" de bico em madeira: dois
++     harmónicos, decay rápido, sem tom sustentado.
++
++Não é uma gravação real — síntese em Python/numpy, tal como os outros
++sons da app (ver make_exotic_birds_call.py, make_toucan_call.py).
++
++Corre com: python3 scripts/make_badge_toc.py
++Produz:    assets/sounds/badge-toc.wav (mono, 16-bit, 44.1kHz)
++"""
++import numpy as np
++import wave
++
++SR = 44100
++
++
++def env(n, attack=0.006, decay_curve=2.2):
++    e = np.ones(n)
++    a = max(1, int(attack * SR))
++    e[:a] = np.linspace(0, 1, a) ** 1.3
++    e *= np.linspace(1, 0, n) ** decay_curve
++    return e
++
++
++def whistle(duration, freqs, amp=1.0):
++    """Assobio de pássaro: seno + um toque do 2º harmónico, tal como em
++    make_exotic_birds_call.py — mesma identidade sonora do coro."""
++    n = int(duration * SR)
++    t = np.arange(n) / SR
++    xp = np.linspace(0, duration, len(freqs))
++    f = np.interp(t, xp, freqs)
++    phase = 2 * np.pi * np.cumsum(f) / SR
++    sig = np.sin(phase) + 0.12 * np.sin(2 * phase)
++    sig *= env(n, attack=0.01, decay_curve=1.6)
++    return sig * amp
++
++
++def toc(duration=0.09, f1=1400, f2=2600):
++    """"Toc" seco de bico em madeira: dois harmónicos, decay muito
++    rápido, sem tom sustentado — um acento, não uma nota."""
++    n = int(duration * SR)
++    t = np.arange(n) / SR
++    sig = 0.75 * np.sin(2 * np.pi * f1 * t) + 0.35 * np.sin(2 * np.pi * f2 * t)
++    sig *= env(n, attack=0.001, decay_curve=6.0)
++    return sig
++
++
++def place(canvas, sig, start_time):
++    start = int(start_time * SR)
++    end = start + len(sig)
++    if end > len(canvas):
++        canvas = np.concatenate([canvas, np.zeros(end - len(canvas))])
++    canvas[start:end] += sig
++    return canvas
++
++
++def build():
++    total = 1.0
++    canvas = np.zeros(int(total * SR))
++    # Assobio único, ascendente — entrada suave.
++    canvas = place(canvas, whistle(0.30, [2200, 3400], amp=0.8), 0.00)
++    # Toque percussivo no impacto (t ≈ 0,26s), a coincidir com o fim do
++    # assobio, como um "pouso".
++    canvas = place(canvas, toc(), 0.26)
++    canvas = place(canvas, toc(duration=0.07, f1=1200, f2=2200), 0.34)  # segundo harmónico, mais leve
++
++    peak = np.max(np.abs(canvas))
++    if peak > 0:
++        canvas = canvas / peak * 0.9
++    return canvas
++
++
++def save_wav(path, signal):
++    data = np.clip(signal, -1, 1)
++    pcm = (data * 32767).astype(np.int16)
++    with wave.open(path, 'w') as wf:
++        wf.setnchannels(1)
++        wf.setsampwidth(2)
++        wf.setframerate(SR)
++        wf.writeframes(pcm.tobytes())
++
++
++if __name__ == '__main__':
++    signal = build()
++    save_wav('assets/sounds/badge-toc.wav', signal)
++    print(f"Gerado assets/sounds/badge-toc.wav ({len(signal) / SR:.2f}s)")
+diff --git a/src/components/BadgeCelebration.js b/src/components/BadgeCelebration.js
+new file mode 100644
+index 0000000..ad79145
+--- /dev/null
++++ b/src/components/BadgeCelebration.js
+@@ -0,0 +1,103 @@
++import React, { useEffect, useRef, useState } from 'react';
++import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
++import { useAudioPlayer } from 'expo-audio';
++import ToucanAvatar from './ToucanAvatar';
++import BadgeIcon from './BadgeIcon';
++import { COLORS, FONTS } from '../theme';
++
++// Coreografia do badge — especificação v2, secção 5 (12/09/2026),
++// ~1,4s + 2s de permanência antes de dissolver:
++//   0,0–0,6s  tucano entra de fora do ecrã
++//   0,6–1,0s  a medalha "solta-se" e desce — o toque percussivo cai aqui
++//   1,0–1,4s  a medalha assenta com micro-overshoot; nome aparece
++//   +2s       dissolve. Sem botão, sem modal.
++//
++// `badge` = { id, name } | null. `trigger` muda (timestamp) sempre que
++// há um novo badge a celebrar — o mesmo padrão do Confetti.js.
++// `muted` = true quando coincide com um Perfect! nesse mesmo dia (só
++// toca o som do Perfect!, a medalha aparece em silêncio — secção 2).
++const TOC_SOUND = require('../../assets/sounds/badge-toc.wav');
++
++export default function BadgeCelebration({ badge, trigger, muted }) {
++  const player = useAudioPlayer(TOC_SOUND);
++  const [visible, setVisible] = useState(false);
++  const [shownBadge, setShownBadge] = useState(null);
++
++  const birdOpacity = useRef(new Animated.Value(0)).current;
++  const birdTX = useRef(new Animated.Value(70)).current;
++  const birdTY = useRef(new Animated.Value(-36)).current;
++  const medalScale = useRef(new Animated.Value(0)).current;
++  const medalOpacity = useRef(new Animated.Value(0)).current;
++  const nameOpacity = useRef(new Animated.Value(0)).current;
++  const dissolve = useRef(new Animated.Value(1)).current;
++
++  useEffect(() => {
++    if (!trigger || !badge) return;
++    setShownBadge(badge);
++    setVisible(true);
++
++    birdOpacity.setValue(0); birdTX.setValue(70); birdTY.setValue(-36);
++    medalScale.setValue(0); medalOpacity.setValue(0);
++    nameOpacity.setValue(0); dissolve.setValue(1);
++
++    if (!muted) {
++      try { player.seekTo(0); player.play(); } catch (e) { /* som é um extra, nunca bloqueia a celebração */ }
++    }
++
++    Animated.sequence([
++      // 0 – 0.6s: tucano entra de fora do ecrã
++      Animated.parallel([
++        Animated.timing(birdOpacity, { toValue: 1, duration: 380, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
++        Animated.timing(birdTX, { toValue: 0, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
++        Animated.timing(birdTY, { toValue: 0, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
++      ]),
++      // 0.6 – 1.0s: a medalha solta-se e desce (o som já tocou ao entrar aqui)
++      Animated.parallel([
++        Animated.timing(medalOpacity, { toValue: 1, duration: 220, easing: Easing.linear, useNativeDriver: true }),
++        Animated.timing(medalScale, { toValue: 1.12, duration: 340, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
++      ]),
++      // 1.0 – 1.4s: micro-overshoot da medalha + nome aparece
++      Animated.parallel([
++        Animated.spring(medalScale, { toValue: 1, friction: 4.2, tension: 120, useNativeDriver: true }),
++        Animated.timing(nameOpacity, { toValue: 1, duration: 300, easing: Easing.out(Easing.quad), useNativeDriver: true }),
++      ]),
++    ]).start();
++
++    const dismissAt = 1400 + 2000;
++    const timer = setTimeout(() => {
++      Animated.timing(dissolve, { toValue: 0, duration: 320, easing: Easing.in(Easing.quad), useNativeDriver: true })
++        .start(() => setVisible(false));
++    }, dismissAt);
++    return () => clearTimeout(timer);
++  }, [trigger]);
++
++  if (!visible || !shownBadge) return null;
++
++  return (
++    <View pointerEvents="none" style={styles.wrap}>
++      <Animated.View style={[styles.card, { opacity: dissolve }]}>
++        <Animated.View
++          style={{
++            opacity: birdOpacity,
++            transform: [{ translateX: birdTX }, { translateY: birdTY }],
++          }}
++        >
++          <ToucanAvatar size={54} />
++        </Animated.View>
++        <Animated.View style={{ opacity: medalOpacity, transform: [{ scale: medalScale }], marginTop: -6 }}>
++          <BadgeIcon badgeId={shownBadge.id} size={56} />
++        </Animated.View>
++        <Animated.Text style={[styles.name, { opacity: nameOpacity }]}>{shownBadge.name}</Animated.Text>
++      </Animated.View>
++    </View>
++  );
++}
++
++const styles = StyleSheet.create({
++  wrap: { position: 'absolute', top: 78, left: 0, right: 0, alignItems: 'center' },
++  card: {
++    backgroundColor: COLORS.card, borderRadius: 16, borderWidth: 2, borderColor: COLORS.line,
++    paddingVertical: 10, paddingHorizontal: 18, alignItems: 'center', gap: 2,
++  },
++  name: { fontFamily: FONTS.bodyBold, fontSize: 12.5, color: COLORS.ink, marginTop: 2 },
++});
+diff --git a/src/components/BadgeIcon.js b/src/components/BadgeIcon.js
+new file mode 100644
+index 0000000..e234ada
+--- /dev/null
++++ b/src/components/BadgeIcon.js
+@@ -0,0 +1,121 @@
++import React from 'react';
++import { View, Text, StyleSheet } from 'react-native';
++import Svg, { Circle, Rect, Path } from 'react-native-svg';
++import { COLORS, FONTS } from '../theme';
++import { BADGE_DEFS, PHASES } from '../utils/badges';
++
++// Medalhas Bauhaus (especificação v2, secção 6, 12/09/2026): círculo de
++// 88px, fundo ink, composição geométrica ao centro em cor lisa (zero
++// gradientes, zero brilho). Cada badge combina 1-2 formas do
++// vocabulário círculo/quadrado/triângulo/meio-círculo/arco — nunca uma
++// ilustração à parte.
++//
++// Os quatro badges de "acumulação longa" (#2, #8, #11, #12) partilham o
++// triângulo-a-subir explícito da especificação; a contagem de
++// triângulos empilhados (1 → 2 → 3) e a chegada a um círculo completo no
++// #12 fazem a progressão ler-se visualmente sem precisar de 4 ilustrações
++// distintas.
++
++function phaseColor(phaseKey) {
++  const colorKey = PHASES[phaseKey]?.color || 'mostarda';
++  return COLORS[colorKey];
++}
++
++function Shape({ shape, color }) {
++  switch (shape) {
++    case 'dot':
++      // #1 Primeira batida — uma só marca.
++      return <Circle cx="44" cy="44" r="10" fill={color} />;
++    case 'tri1':
++      // #2 Três asas — um triângulo a subir.
++      return <Path d="M44 26 L60 58 L28 58 Z" fill={color} />;
++    case 'tri2':
++      // #8 Bando — dois triângulos empilhados.
++      return (
++        <>
++          <Path d="M44 22 L56 44 L32 44 Z" fill={color} />
++          <Path d="M44 40 L60 66 L28 66 Z" fill={color} />
++        </>
++      );
++    case 'tri3':
++      // #11 Fila indiana — três triângulos empilhados.
++      return (
++        <>
++          <Path d="M44 18 L53 34 L35 34 Z" fill={color} />
++          <Path d="M44 32 L55 51 L33 51 Z" fill={color} />
++          <Path d="M44 48 L60 66 L28 66 Z" fill={color} />
++        </>
++      );
++    case 'triCircle':
++      // #12 Altaneira — o triângulo chega ao círculo completo.
++      return (
++        <>
++          <Circle cx="44" cy="50" r="14" fill="none" stroke={color} strokeWidth="3" />
++          <Path d="M44 20 L54 42 L34 42 Z" fill={color} />
++        </>
++      );
++    case 'square':
++      // #3 Planeio — quadrado sólido: "isto conta mesmo".
++      return <Rect x="30" y="30" width="28" height="28" fill={color} />;
++    case 'arc':
++      // #4 De volta ao oco.
++      return <Path d="M26 40 A18 18 0 0 0 62 40" stroke={color} strokeWidth="6" fill="none" strokeLinecap="round" />;
++    case 'half':
++      // #5 Primeira fruta.
++      return <Path d="M24 46 A20 20 0 0 1 64 46 Z" fill={color} />;
++    case 'halfRot':
++      // #9 Bico ao vento — o mesmo meio-círculo, rodado 90°.
++      return <Path d="M42 24 A20 20 0 0 1 42 64 Z" fill={color} />;
++    case 'circleSquare':
++      // #6 Sete dias de presença — marco redondo com um núcleo firme.
++      return (
++        <>
++          <Circle cx="44" cy="44" r="17" fill="none" stroke={color} strokeWidth="4" />
++          <Rect x="37" y="37" width="14" height="14" fill={color} />
++        </>
++      );
++    case 'hop':
++      // #7 Salto — um pequeno salto, contorno apenas (esforço mínimo).
++      return <Path d="M44 24 L54 44 L34 44 Z" stroke={color} strokeWidth="3" fill="none" strokeLinejoin="round" />;
++    case 'bareHead':
++      // #10 Orgulho nu — a cabeça do ProudOfMe (meio-círculo + olho)
++      // sem o bico: "nu" porque falta a peça que assinala cumprir.
++      return (
++        <>
++          <Path d="M26 46 A18 18 0 0 1 62 46" fill={color} />
++          <Circle cx="44" cy="52" r="4" fill={COLORS.ink} />
++        </>
++      );
++    default:
++      return <Circle cx="44" cy="44" r="10" fill={color} />;
++  }
++}
++
++export default function BadgeIcon({ badgeId, size = 88, count, dimmed = false }) {
++  const def = BADGE_DEFS[badgeId];
++  if (!def) return null;
++  const color = phaseColor(def.phase);
++
++  return (
++    <View style={{ width: size, height: size, opacity: dimmed ? 0.45 : 1 }}>
++      <Svg width={size} height={size} viewBox="0 0 88 88">
++        <Circle cx="44" cy="44" r="44" fill={COLORS.ink} />
++        <Shape shape={def.shape} color={color} />
++      </Svg>
++      {count > 1 && (
++        <View style={styles.countChip}>
++          <Text style={styles.countChipText}>×{count}</Text>
++        </View>
++      )}
++    </View>
++  );
++}
++
++const styles = StyleSheet.create({
++  countChip: {
++    position: 'absolute', right: -4, bottom: -4,
++    backgroundColor: COLORS.card, borderRadius: 10, borderWidth: 2, borderColor: COLORS.line,
++    paddingHorizontal: 6, paddingVertical: 1,
++  },
++  countChipText: { fontFamily: FONTS.bodyBold, fontSize: 11, color: COLORS.ink },
++});
+diff --git a/src/components/BottomNav.js b/src/components/BottomNav.js
+index a66d4f7..fe746b7 100644
+--- a/src/components/BottomNav.js
++++ b/src/components/BottomNav.js
+@@ -27,11 +27,22 @@ function TreinoIcon({ color }) {
+     </Svg>
+   );
+ }
++// Medalha — aba Conquistas (especificação v2, secção 4, 12/09/2026).
++function ConquistasIcon({ color }) {
++  return (
++    <Svg width={21} height={21} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.4}>
++      <Circle cx="12" cy="14" r="6" />
++      <Path d="M9 8.5L6 3M15 8.5L18 3" strokeLinecap="round" />
++      <Path d="M10 14l1.4 1.4L14.5 12" strokeLinecap="round" strokeLinejoin="round" />
++    </Svg>
++  );
++}
+ 
+ const TAB_KEYS = [
+   { key: 'hoje', tKey: 'nav.hoje', Icon: HojeIcon },
+   { key: 'semana', tKey: 'nav.semana', Icon: SemanaIcon },
+   { key: 'treino', tKey: 'nav.treino', Icon: TreinoIcon },
++  { key: 'conquistas', tKey: 'nav.conquistas', Icon: ConquistasIcon },
+ ];
+ 
+ export default function BottomNav({ active, onChange }) {
+@@ -60,7 +71,7 @@ const styles = StyleSheet.create({
+     backgroundColor: COLORS.card, borderTopWidth: 2, borderTopColor: COLORS.line,
+     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around',
+   },
+-  btn: { alignItems: 'center', paddingHorizontal: 18, paddingVertical: 6, gap: 4 },
+-  label: { fontFamily: FONTS.bodyBold, fontSize: 10.5 },
++  btn: { flex: 1, alignItems: 'center', paddingHorizontal: 6, paddingVertical: 6, gap: 4 },
++  label: { fontFamily: FONTS.bodyBold, fontSize: 9.5 },
+   dot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: COLORS.electro, marginTop: 1 },
+ });
+diff --git a/src/context/DataContext.js b/src/context/DataContext.js
+index 36be146..0ca981d 100644
+--- a/src/context/DataContext.js
++++ b/src/context/DataContext.js
+@@ -1,16 +1,38 @@
+ import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
++import AsyncStorage from '@react-native-async-storage/async-storage';
+ import { supabase } from '../supabaseClient';
+ import { isoMonday, fmt } from '../utils/dates';
+-import { blankDay, migrateDay, anchorFields } from '../utils/fields';
++import { blankDay, migrateDay, anchorFields, currentScore, maxScore } from '../utils/fields';
+ import { getCachedKey, getOrCreateDeviceKey, encryptProfileField, decryptProfileField } from '../utils/profileCrypto';
++import { evaluateBadgesAndCycles, groupEarnedByBadge, isUnique } from '../utils/badges';
+ 
+ const DataContext = createContext(null);
+ 
++// Preferência de som dos badges (especificação v2, secção 5: "respeitar
++// o modo silêncio e registar uma preferência de som no Perfil" — a
++// hipersensibilidade auditiva é comum em PHDA). Local ao dispositivo,
++// por omissão ligado.
++const BADGE_SOUND_KEY = 'tucan_badge_sound_';
++
+ export function DataProvider({ user, children }) {
+   const userId = user.id;
+   const todayMonday = useRef(isoMonday(new Date())).current;
+   const todayIndex = (new Date().getDay() + 6) % 7;
+ 
++  const [badgeSoundEnabled, setBadgeSoundEnabledState] = useState(true);
++  useEffect(() => {
++    (async () => {
++      try {
++        const raw = await AsyncStorage.getItem(BADGE_SOUND_KEY + userId);
++        if (raw !== null) setBadgeSoundEnabledState(raw === '1');
++      } catch (e) { /* por omissão fica ligado */ }
++    })();
++  }, [userId]);
++  const setBadgeSoundEnabled = useCallback((value) => {
++    setBadgeSoundEnabledState(value);
++    AsyncStorage.setItem(BADGE_SOUND_KEY + userId, value ? '1' : '0').catch(() => {});
++  }, [userId]);
++
+   const [customFields, setCustomFieldsState] = useState([]);
+   const [ready, setReady] = useState(false);
+ 
+@@ -83,6 +105,106 @@ export function DataProvider({ user, children }) {
+     if (error) console.error('upsert fields', error);
+   }, [customFields, userId, fieldsInitialized]);
+ 
++  // ---------- badges e travessias (especificação v2, secções 2/3) ----------
++  // A avaliação em si é pura (src/utils/badges.js) — aqui só se busca o
++  // histórico completo, se sincroniza o resultado com `cycles`/`badges`
++  // na BD, e se guarda em estado o que a aba Conquistas precisa de
++  // mostrar. Declarado antes de saveToday/saveWeek abaixo, que chamam
++  // `syncBadgesAndCycles` depois de cada gravação — precisa de existir
++  // primeiro para essas funções o poderem incluir nas suas próprias
++  // dependências do useCallback.
++  const [badgesData, setBadgesData] = useState({ cycles: [], byBadge: {} });
++  const [newBadgeEvent, setNewBadgeEvent] = useState(null); // { badgeId, trigger, muted }
++  const earnedKeysRef = useRef(new Set()); // "badgeId|date" já vistos nesta sessão
++  const seededRef = useRef(false);
++
++  const syncBadgesAndCycles = useCallback(async (opts = {}) => {
++    const { muteDate } = opts; // data (YYYY-MM-DD) cuja celebração deve tocar em silêncio (coincide com Perfect!)
++    const { data: rows, error } = await supabase
++      .from('days')
++      .select('date, custom, mood, therapy, perfect, anchor_ids, first_logged_at')
++      .eq('user_id', userId);
++    if (error) { console.error('syncBadgesAndCycles: loadAllDays', error); return; }
++
++    const { cycles, earned } = evaluateBadgesAndCycles(rows || [], customFields);
++
++    // 1. Upsert das travessias (para obter o cycle_id real da BD — o id
++    //    `cycle-YYYY-MM-DD` usado internamente por badges.js é só para
++    //    agrupar durante o cálculo, nunca é gravado).
++    const cycleRows = cycles.map((c, i) => ({
++      user_id: userId,
++      number: c.number,
++      started_on: c.startedOn,
++      ended_on: i < cycles.length - 1 ? c.lastDate : null,
++      days_logged: c.daysLogged,
++      closed_at: i < cycles.length - 1 ? new Date().toISOString() : null,
++    }));
++    let dbCycles = [];
++    if (cycleRows.length) {
++      const { data, error: cErr } = await supabase
++        .from('cycles')
++        .upsert(cycleRows, { onConflict: 'user_id,number' })
++        .select('id, number');
++      if (cErr) console.error('syncBadgesAndCycles: upsert cycles', cErr);
++      dbCycles = data || [];
++    }
++    const cycleIdByNumber = {};
++    dbCycles.forEach((c) => { cycleIdByNumber[c.number] = c.id; });
++
++    // 2. Únicos só podem ser ganhos uma vez por travessia — filtra
++    //    ocorrências repetidas do mesmo único dentro do mesmo ciclo
++    //    antes de gravar (a avaliação já só emite um por dia, mas um
++    //    único pode, em teoria, voltar a bater a condição mais tarde
++    //    no mesmo ciclo se os dados históricos forem reprocessados).
++    const seenUniquePerCycle = new Set();
++    const badgeRows = [];
++    earned.forEach((e) => {
++      const key = `${e.badgeId}|${e.cycleNumber}`;
++      if (isUnique(e.badgeId)) {
++        if (seenUniquePerCycle.has(key)) return;
++        seenUniquePerCycle.add(key);
++      }
++      badgeRows.push({
++        user_id: userId,
++        badge_id: e.badgeId,
++        earned_at: e.date,
++        cycle_id: cycleIdByNumber[e.cycleNumber] || null,
++      });
++    });
++
++    if (badgeRows.length) {
++      const { error: bErr } = await supabase
++        .from('badges')
++        .upsert(badgeRows, { onConflict: 'user_id,badge_id,earned_at', ignoreDuplicates: true });
++      if (bErr) console.error('syncBadgesAndCycles: upsert badges', bErr);
++    }
++
++    // 3. Estado local para a aba Conquistas.
++    setBadgesData({ cycles, byBadge: groupEarnedByBadge(earned) });
++
++    // 4. Detetar o que é novo nesta sessão, para a celebração (secção
++    //    5). Na primeira avaliação depois de abrir a app (`seededRef`),
++    //    só regista o que já existe sem celebrar nada — senão o
++    //    histórico inteiro "explodiria" de medalhas ao entrar na app.
++    const seenBefore = seededRef.current;
++    let freshest = null;
++    earned.forEach((e) => {
++      const k = `${e.badgeId}|${e.date}`;
++      if (!earnedKeysRef.current.has(k)) {
++        earnedKeysRef.current.add(k);
++        if (seenBefore) freshest = e;
++      }
++    });
++    seededRef.current = true;
++    if (freshest) {
++      setNewBadgeEvent({
++        badgeId: freshest.badgeId,
++        trigger: Date.now(),
++        muted: !!muteDate && freshest.date === muteDate,
++      });
++    }
++  }, [userId, customFields]);
++
+   // ---------- day data ----------
+   function rowToDay(row) {
+     const day = row
+@@ -143,7 +265,8 @@ export function DataProvider({ user, children }) {
+         saveDayRemote(dateForIndex(currentMonday, i), nextWeekData.days[i])
+       )
+     );
+-  }, [currentMonday, todayMonday, saveDayRemote]);
++    syncBadgesAndCycles();
++  }, [currentMonday, todayMonday, saveDayRemote, syncBadgesAndCycles]);
+ 
+   const loadToday = useCallback(async () => {
+     const wd = await fetchWeek(todayMonday);
+@@ -151,12 +274,25 @@ export function DataProvider({ user, children }) {
+   }, [fetchWeek, todayMonday]);
+ 
+   const saveToday = useCallback(async (nextTodayWeek) => {
++    // O som/confetti do Perfect! (HojeScreen#onCelebrate) toca sempre
++    // que o preenchimento das âncoras acaba de chegar ao máximo — não
++    // só quando se carrega no botão "Perfect!". Um badge que calhe no
++    // mesmo instante fica em silêncio (secção 2: "só toca o som do
++    // Perfect!, a medalha aparece em silêncio").
++    const prevDay = todayWeek.days[todayIndex];
++    const max = maxScore(customFields);
++    const wasMax = max > 0 && currentScore(prevDay || blankDay(), customFields) === max;
++    const nowMax = max > 0 && currentScore(nextTodayWeek.days[todayIndex], customFields) === max;
++    const perfectSoundNow = nowMax && !wasMax;
++    const dateStr = dateForIndex(todayMonday, todayIndex);
++
+     setTodayWeek(nextTodayWeek); // optimistic
+     if (fmt(currentMonday) === fmt(todayMonday)) {
+       setWeekData(nextTodayWeek);
+     }
+-    await saveDayRemote(dateForIndex(todayMonday, todayIndex), nextTodayWeek.days[todayIndex]);
+-  }, [currentMonday, todayMonday, todayIndex, saveDayRemote]);
++    await saveDayRemote(dateStr, nextTodayWeek.days[todayIndex]);
++    syncBadgesAndCycles({ muteDate: perfectSoundNow ? dateStr : null });
++  }, [currentMonday, todayMonday, todayIndex, todayWeek, customFields, saveDayRemote, syncBadgesAndCycles]);
+ 
+   const goToWeek = useCallback(async (monday) => {
+     setCurrentMonday(monday);
+@@ -276,6 +412,15 @@ export function DataProvider({ user, children }) {
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [userId]);
+ 
++  // Primeira avaliação de badges/travessias assim que os campos e o
++  // histórico estão prontos (sem esperar por uma gravação nova) — é o
++  // que dá conteúdo à aba Conquistas logo na primeira visita.
++  useEffect(() => {
++    if (!ready) return;
++    syncBadgesAndCycles();
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, [ready]);
++
+   const value = useMemo(() => ({
+     ready,
+     todayMonday, todayIndex,
+@@ -284,11 +429,15 @@ export function DataProvider({ user, children }) {
+     todayWeek, saveToday, loadToday,
+     sessions, persistSessions, loadSessions,
+     profile, updateProfile, loadTrendDays,
++    badgesData, newBadgeEvent, syncBadgesAndCycles,
++    badgeSoundEnabled, setBadgeSoundEnabled,
+   }), [
+     ready, customFields, currentMonday, weekData, todayWeek, sessions,
+     persistCustomFields, loadCustomFields, fieldsInitialized, goToWeek, saveWeek, loadSemana,
+     saveToday, loadToday, persistSessions, loadSessions, todayMonday,
+     profile, updateProfile, loadTrendDays,
++    badgesData, newBadgeEvent, syncBadgesAndCycles,
++    badgeSoundEnabled, setBadgeSoundEnabled,
+   ]);
+ 
+   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
+diff --git a/src/i18n/translations.js b/src/i18n/translations.js
+index edf36a2..923af68 100644
+--- a/src/i18n/translations.js
++++ b/src/i18n/translations.js
+@@ -278,6 +278,49 @@ const ENTRIES = [
+   ['nav.hoje', 'Hoje', 'Today', "Aujourd'hui"],
+   ['nav.semana', 'Semana', 'Week', 'Semaine'],
+   ['nav.treino', 'Treino', 'Workout', 'Entraînement'],
++  ['nav.conquistas', 'Conquistas', 'Achievements', 'Réussites'],
++
++  // ---------- badges (especificação v2, secção 2, 12/09/2026) ----------
++  ['badge.b1.name', 'Primeira batida', 'First flap', 'Premier battement'],
++  ['badge.b1.desc', 'O teu primeiro registo, seja ele qual for.', 'Your very first log, whatever it was.', 'Ton tout premier enregistrement, quel qu\'il soit.'],
++  ['badge.b2.name', 'Três asas', 'Three wings', 'Trois ailes'],
++  ['badge.b2.desc', '3 dias registados nesta travessia — não precisam de ser seguidos.', '3 days logged in this crossing — they don\'t need to be in a row.', '3 jours enregistrés dans cette traversée — pas besoin qu\'ils se suivent.'],
++  ['badge.b3.name', 'Planeio', 'Glide', 'Plané'],
++  ['badge.b3.desc', 'Registaste num dia em que nenhuma âncora se cumpriu. É o mais importante desta lista.', 'You logged on a day when no anchor got done. This is the most important one on this list.', 'Tu as enregistré un jour où aucune ancre n\'a été tenue. C\'est le plus important de cette liste.'],
++  ['badge.b4.name', 'De volta ao oco', 'Back to the nest', 'De retour au nid'],
++  ['badge.b4.desc', 'Voltaste a registar depois de 3 ou mais dias de silêncio.', 'You came back to log after 3 or more days of silence.', 'Tu es revenue enregistrer après 3 jours ou plus de silence.'],
++  ['badge.b5.name', 'Primeira fruta', 'First fruit', 'Premier fruit'],
++  ['badge.b5.desc', 'Registaste antes das 10h — a quinta vez que isso acontece.', 'You logged before 10am — the fifth time that\'s happened.', 'Tu as enregistré avant 10h — la cinquième fois que ça arrive.'],
++  ['badge.b6.name', 'Sete dias de presença', 'Seven days present', 'Sept jours de présence'],
++  ['badge.b6.desc', '7 dias registados nesta travessia.', '7 days logged in this crossing.', '7 jours enregistrés dans cette traversée.'],
++  ['badge.b7.name', 'Salto', 'Hop', 'Saut'],
++  ['badge.b7.desc', 'Registaste só um bocadinho, sem chegar à meta — a quinta vez que isso acontece.', 'You logged just a little, without reaching the goal — the fifth time that\'s happened.', 'Tu as enregistré juste un peu, sans atteindre l\'objectif — la cinquième fois que ça arrive.'],
++  ['badge.b8.name', 'Bando', 'Flock', 'Bande'],
++  ['badge.b8.desc', '12 dias registados nesta travessia.', '12 days logged in this crossing.', '12 jours enregistrés dans cette traversée.'],
++  ['badge.b9.name', 'Bico ao vento', 'Beak to the wind', 'Bec au vent'],
++  ['badge.b9.desc', 'Registaste a Energia — a décima vez que isso acontece.', 'You logged your Energy — the tenth time that\'s happened.', 'Tu as enregistré ton Énergie — la dixième fois que ça arrive.'],
++  ['badge.b10.name', 'Orgulho nu', 'Bare pride', 'Fierté nue'],
++  ['badge.b10.desc', 'Marcaste ProudOfMe num dia em que nenhuma âncora se cumpriu.', 'You marked ProudOfMe on a day when no anchor got done.', 'Tu as marqué ProudOfMe un jour où aucune ancre n\'a été tenue.'],
++  ['badge.b11.name', 'Fila indiana', 'Single file', 'File indienne'],
++  ['badge.b11.desc', '20 dias registados nesta travessia.', '20 days logged in this crossing.', '20 jours enregistrés dans cette traversée.'],
++  ['badge.b12.name', 'Altaneira', 'Skyward', 'Altière'],
++  ['badge.b12.desc', '31 dias registados nesta travessia.', '31 days logged in this crossing.', '31 jours enregistrés dans cette traversée.'],
++
++  // ---------- aba Conquistas (secção 4) ----------
++  ['conquistas.title', 'Conquistas', 'Achievements', 'Réussites'],
++  ['conquistas.tabCollection', 'Coleção', 'Collection', 'Collection'],
++  ['conquistas.tabTimeline', 'Linha do tempo', 'Timeline', 'Chronologie'],
++  ['conquistas.tabDaily', 'Por dia', 'By day', 'Par jour'],
++  ['conquistas.empty', 'Ainda não há nada aqui — a primeira medalha aparece com o teu primeiro registo.', 'Nothing here yet — the first medal shows up with your first log.', 'Rien ici pour l\'instant — la première médaille arrive avec ton premier enregistrement.'],
++  ['conquistas.currentCrossing', 'Travessia atual', 'Current crossing', 'Traversée actuelle'],
++  ['conquistas.crossingOf', 'Travessia de {date}', 'Crossing since {date}', 'Traversée du {date}'],
++  ['conquistas.newCrossing', 'Nova travessia — bem-vinda de volta.', 'New crossing — welcome back.', 'Nouvelle traversée — bon retour.'],
++  ['conquistas.daysInCrossing', '{n} dias registados nesta travessia', '{n} days logged in this crossing', '{n} jours enregistrés dans cette traversée'],
++  ['conquistas.badgeHistoryTitle', 'Datas em que ganhaste este badge', 'Dates you earned this badge', 'Dates où tu as gagné ce badge'],
++  ['conquistas.close', 'Fechar', 'Close', 'Fermer'],
++  ['conquistas.noBadgesThatDay', 'Sem badges neste dia.', 'No badges that day.', 'Aucun badge ce jour-là.'],
++  ['conquistas.soundLabel', 'Som dos badges', 'Badge sound', 'Son des badges'],
++  ['conquistas.soundHint', 'O toque curto que ouves sempre que ganhas um badge. Podes desligá-lo a qualquer momento.', 'The short chime you hear whenever you earn a badge. You can turn it off any time.', 'Le petit son que tu entends à chaque badge gagné. Tu peux le désactiver à tout moment.'],
+ 
+   // ---------- aviso de navegador incorporado ----------
+   ['inapp.title', 'Estás a abrir isto dentro do {name}', "You're opening this inside {name}", 'Tu ouvres ceci dans {name}'],
+diff --git a/src/screens/ConquistasScreen.js b/src/screens/ConquistasScreen.js
+new file mode 100644
+index 0000000..286ffaa
+--- /dev/null
++++ b/src/screens/ConquistasScreen.js
+@@ -0,0 +1,234 @@
++import React, { useMemo, useState } from 'react';
++import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal } from 'react-native';
++import { COLORS, FONTS, NAV_HEIGHT } from '../theme';
++import { useData } from '../context/DataContext';
++import { useLanguage } from '../i18n/LanguageContext';
++import { BADGE_ORDER, isUnique } from '../utils/badges';
++import { fmtLongDate } from '../utils/dates';
++import BadgeIcon from '../components/BadgeIcon';
++
++// Aba Conquistas — especificação v2, secção 4 (12/09/2026). Três
++// sub-vistas (coleção / linha do tempo / por dia) + o detalhe por
++// badge ao tocar numa medalha ganha. Regra que governa tudo aqui,
++// repetida da secção 0: só aparece o que já foi ganho — nunca uma
++// silhueta cinzenta, nunca "3 de 12". A coleção cresce, não se
++// preenche.
++
++function useAllEarned(byBadge) {
++  return useMemo(() => {
++    const all = [];
++    Object.entries(byBadge).forEach(([badgeId, list]) => {
++      list.forEach((e) => all.push({ ...e, badgeId }));
++    });
++    all.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
++    return all;
++  }, [byBadge]);
++}
++
++export default function ConquistasScreen() {
++  const { badgesData } = useData();
++  const { t, language } = useLanguage();
++  const [subTab, setSubTab] = useState('collection');
++  const [selectedBadge, setSelectedBadge] = useState(null);
++  const [selectedDay, setSelectedDay] = useState(null);
++
++  const byBadge = badgesData.byBadge || {};
++  const allEarned = useAllEarned(byBadge);
++  const hasAny = allEarned.length > 0;
++
++  // Nota: a fusão de travessias-fantasma (mergeGhostCycles, secção 3
++  // regra 3) aplica-se aos futuros relatórios (secção 7, ainda por
++  // implementar) — aqui mostra-se sempre a travessia viva tal como
++  // está, mesmo que ainda tenha menos de 3 dias.
++  const liveCycle = badgesData.cycles && badgesData.cycles.length ? badgesData.cycles[badgesData.cycles.length - 1] : null;
++
++  const collection = useMemo(() => {
++    return BADGE_ORDER
++      .filter((id) => byBadge[id] && byBadge[id].length)
++      .map((id) => ({ id, count: byBadge[id].length, latest: byBadge[id][0].date }))
++      .sort((a, b) => (a.latest < b.latest ? 1 : -1));
++  }, [byBadge]);
++
++  const byDate = useMemo(() => {
++    const map = {};
++    allEarned.forEach((e) => {
++      if (!map[e.date]) map[e.date] = [];
++      map[e.date].push(e);
++    });
++    return map;
++  }, [allEarned]);
++  const dateKeys = Object.keys(byDate).sort((a, b) => (a < b ? 1 : -1));
++
++  return (
++    <ScrollView style={styles.screen} contentContainerStyle={{ paddingBottom: NAV_HEIGHT + 24 }}>
++      <Text style={styles.h1}>{t('conquistas.title')}</Text>
++
++      {liveCycle && (
++        <View style={styles.crossingBanner}>
++          <Text style={styles.crossingLabel}>{t('conquistas.currentCrossing')}</Text>
++          <Text style={styles.crossingDate}>{t('conquistas.crossingOf', { date: fmtLongDate(liveCycle.startedOn, language) })}</Text>
++          <Text style={styles.crossingDays}>{t('conquistas.daysInCrossing', { n: liveCycle.daysLogged })}</Text>
++        </View>
++      )}
++
++      <View style={styles.tabsRow}>
++        {[
++          ['collection', t('conquistas.tabCollection')],
++          ['timeline', t('conquistas.tabTimeline')],
++          ['daily', t('conquistas.tabDaily')],
++        ].map(([key, label]) => (
++          <TouchableOpacity key={key} style={[styles.subTabBtn, subTab === key && styles.subTabBtnActive]} onPress={() => setSubTab(key)}>
++            <Text style={[styles.subTabText, subTab === key && styles.subTabTextActive]}>{label}</Text>
++          </TouchableOpacity>
++        ))}
++      </View>
++
++      {!hasAny && <Text style={styles.empty}>{t('conquistas.empty')}</Text>}
++
++      {hasAny && subTab === 'collection' && (
++        <View style={styles.grid}>
++          {collection.map((b) => (
++            <TouchableOpacity key={b.id} style={styles.gridItem} onPress={() => setSelectedBadge(b.id)}>
++              <BadgeIcon badgeId={b.id} size={76} count={b.count} />
++              <Text style={styles.gridItemName}>{t(`badge.${b.id}.name`)}</Text>
++            </TouchableOpacity>
++          ))}
++        </View>
++      )}
++
++      {hasAny && subTab === 'timeline' && (
++        <View style={styles.timeline}>
++          {allEarned.map((e, i) => (
++            <View key={`${e.badgeId}-${e.date}-${i}`} style={styles.timelineRow}>
++              <View style={styles.timelineDotCol}>
++                <View style={styles.timelineDot} />
++                {i < allEarned.length - 1 && <View style={styles.timelineLine} />}
++              </View>
++              <TouchableOpacity style={styles.timelineContent} onPress={() => setSelectedBadge(e.badgeId)}>
++                <BadgeIcon badgeId={e.badgeId} size={40} />
++                <View style={{ flex: 1 }}>
++                  <Text style={styles.timelineName}>{t(`badge.${e.badgeId}.name`)}</Text>
++                  <Text style={styles.timelineDate}>{fmtLongDate(e.date, language)}</Text>
++                </View>
++              </TouchableOpacity>
++            </View>
++          ))}
++        </View>
++      )}
++
++      {hasAny && subTab === 'daily' && (
++        <View style={styles.accordion}>
++          {dateKeys.map((date) => (
++            <TouchableOpacity key={date} style={styles.dayRow} onPress={() => setSelectedDay(date)}>
++              <Text style={styles.dayDate}>{fmtLongDate(date, language)}</Text>
++              <View style={styles.dayBadges}>
++                {byDate[date].map((e, i) => (
++                  <BadgeIcon key={i} badgeId={e.badgeId} size={32} />
++                ))}
++              </View>
++            </TouchableOpacity>
++          ))}
++        </View>
++      )}
++
++      {/* Histórico por badge — secção 4, ponto 4: tocar numa medalha
++          ganha mostra todas as datas em que foi obtida. */}
++      <Modal visible={!!selectedBadge} transparent animationType="fade" onRequestClose={() => setSelectedBadge(null)}>
++        <View style={styles.backdrop}>
++          <View style={styles.modalCard}>
++            {selectedBadge && (
++              <>
++                <BadgeIcon badgeId={selectedBadge} size={72} />
++                <Text style={styles.modalName}>{t(`badge.${selectedBadge}.name`)}</Text>
++                <Text style={styles.modalDesc}>{t(`badge.${selectedBadge}.desc`)}</Text>
++                {isUnique(selectedBadge) ? null : (
++                  <Text style={styles.modalSectionTitle}>{t('conquistas.badgeHistoryTitle')}</Text>
++                )}
++                <ScrollView style={{ maxHeight: 180, width: '100%' }}>
++                  {(byBadge[selectedBadge] || []).map((e, i) => (
++                    <Text key={i} style={styles.modalDate}>{fmtLongDate(e.date, language)}</Text>
++                  ))}
++                </ScrollView>
++              </>
++            )}
++            <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setSelectedBadge(null)}>
++              <Text style={styles.modalCloseText}>{t('conquistas.close')}</Text>
++            </TouchableOpacity>
++          </View>
++        </View>
++      </Modal>
++
++      <Modal visible={!!selectedDay} transparent animationType="fade" onRequestClose={() => setSelectedDay(null)}>
++        <View style={styles.backdrop}>
++          <View style={styles.modalCard}>
++            {selectedDay && (
++              <>
++                <Text style={styles.modalName}>{fmtLongDate(selectedDay, language)}</Text>
++                {(byDate[selectedDay] || []).length === 0 ? (
++                  <Text style={styles.modalDesc}>{t('conquistas.noBadgesThatDay')}</Text>
++                ) : (
++                  <View style={{ gap: 10, alignItems: 'center', marginTop: 8 }}>
++                    {(byDate[selectedDay] || []).map((e, i) => (
++                      <View key={i} style={{ alignItems: 'center', gap: 4 }}>
++                        <BadgeIcon badgeId={e.badgeId} size={56} />
++                        <Text style={styles.modalDesc}>{t(`badge.${e.badgeId}.name`)}</Text>
++                      </View>
++                    ))}
++                  </View>
++                )}
++              </>
++            )}
++            <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setSelectedDay(null)}>
++              <Text style={styles.modalCloseText}>{t('conquistas.close')}</Text>
++            </TouchableOpacity>
++          </View>
++        </View>
++      </Modal>
++    </ScrollView>
++  );
++}
++
++const styles = StyleSheet.create({
++  screen: { flex: 1, paddingHorizontal: 16, paddingTop: 18 },
++  h1: { fontFamily: FONTS.display, fontSize: 22, color: COLORS.ink, marginBottom: 14 },
++
++  crossingBanner: { backgroundColor: COLORS.card, borderWidth: 2, borderColor: COLORS.line, borderRadius: 10, padding: 14, marginBottom: 16 },
++  crossingLabel: { fontSize: 10.5, color: COLORS.inkSoft, fontFamily: FONTS.bodyBold, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
++  crossingDate: { fontFamily: FONTS.display, fontSize: 16, color: COLORS.ink },
++  crossingDays: { fontSize: 12.5, color: COLORS.inkSoft, marginTop: 3 },
++
++  tabsRow: { flexDirection: 'row', gap: 8, marginBottom: 18 },
++  subTabBtn: { flex: 1, paddingVertical: 9, alignItems: 'center', borderRadius: 8, borderWidth: 2, borderColor: COLORS.line, backgroundColor: COLORS.bg },
++  subTabBtnActive: { backgroundColor: COLORS.electro, borderColor: COLORS.electro },
++  subTabText: { color: COLORS.inkSoft, fontFamily: FONTS.bodyBold, fontSize: 11.5 },
++  subTabTextActive: { color: COLORS.bg },
++
++  empty: { color: COLORS.inkSoft, fontSize: 13, lineHeight: 19, textAlign: 'center', marginTop: 36, paddingHorizontal: 12 },
++
++  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
++  gridItem: { width: '30%', alignItems: 'center', gap: 6, marginBottom: 8 },
++  gridItemName: { fontSize: 10.5, color: COLORS.inkSoft, fontFamily: FONTS.bodyBold, textAlign: 'center' },
++
++  timeline: {},
++  timelineRow: { flexDirection: 'row', gap: 12 },
++  timelineDotCol: { alignItems: 'center', width: 14 },
++  timelineDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: COLORS.electro, marginTop: 18 },
++  timelineLine: { width: 2, flex: 1, backgroundColor: COLORS.line, marginVertical: 2 },
++  timelineContent: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.line },
++  timelineName: { fontFamily: FONTS.bodyBold, fontSize: 13.5, color: COLORS.ink },
++  timelineDate: { fontSize: 11.5, color: COLORS.inkSoft, marginTop: 2 },
++
++  accordion: {},
++  dayRow: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.line, gap: 8 },
++  dayDate: { fontFamily: FONTS.bodyBold, fontSize: 13.5, color: COLORS.ink },
++  dayBadges: { flexDirection: 'row', gap: 8 },
++
++  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 24 },
++  modalCard: { width: '100%', maxWidth: 340, backgroundColor: COLORS.card, borderWidth: 2, borderColor: COLORS.line, borderRadius: 14, padding: 22, alignItems: 'center', gap: 6 },
++  modalName: { fontFamily: FONTS.display, fontSize: 17, color: COLORS.ink, textAlign: 'center', marginTop: 8 },
++  modalDesc: { fontSize: 12.5, color: COLORS.inkSoft, textAlign: 'center', lineHeight: 18 },
++  modalSectionTitle: { fontSize: 10.5, color: COLORS.inkSoft, fontFamily: FONTS.bodyBold, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 12, alignSelf: 'flex-start' },
++  modalDate: { fontSize: 13, color: COLORS.ink, paddingVertical: 5, textAlign: 'center' },
++  modalCloseBtn: { marginTop: 16, paddingVertical: 12, paddingHorizontal: 28, borderRadius: 8, borderWidth: 2, borderColor: COLORS.line },
++  modalCloseText: { color: COLORS.ink, fontFamily: FONTS.bodyBold, fontSize: 13 },
++});
+diff --git a/src/screens/ProfileScreen.js b/src/screens/ProfileScreen.js
+index 321e691..c653f11 100644
+--- a/src/screens/ProfileScreen.js
++++ b/src/screens/ProfileScreen.js
+@@ -1,5 +1,5 @@
+ import React, { useState } from 'react';
+-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
++import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Switch } from 'react-native';
+ import { COLORS, FONTS } from '../theme';
+ import { useData } from '../context/DataContext';
+ import { useLanguage } from '../i18n/LanguageContext';
+@@ -14,7 +14,7 @@ import ConfirmModal from '../components/ConfirmModal';
+ const LANGUAGE_NAMES = { pt: 'Português', en: 'English', fr: 'Français' };
+ 
+ export default function ProfileScreen({ onClose }) {
+-  const { profile, updateProfile } = useData();
++  const { profile, updateProfile, badgeSoundEnabled, setBadgeSoundEnabled } = useData();
+   const { t, language, setLanguage, SUPPORTED_LANGUAGES } = useLanguage();
+   const [username, setUsername] = useState(profile.username);
+   const [saving, setSaving] = useState(false);
+@@ -94,6 +94,17 @@ export default function ProfileScreen({ onClose }) {
+         ))}
+       </View>
+ 
++      <Text style={styles.label}>{t('conquistas.soundLabel')}</Text>
++      <View style={styles.soundRow}>
++        <Text style={[styles.hint, { flex: 1, marginBottom: 0 }]}>{t('conquistas.soundHint')}</Text>
++        <Switch
++          value={badgeSoundEnabled}
++          onValueChange={setBadgeSoundEnabled}
++          trackColor={{ false: COLORS.line, true: COLORS.electro }}
++          thumbColor="#fff"
++        />
++      </View>
++
+       {!!error && <Text style={styles.error}>{error}</Text>}
+       {!!message && <Text style={styles.info}>{message}</Text>}
+ 
+@@ -140,6 +151,7 @@ const styles = StyleSheet.create({
+   readOnlyText: { color: COLORS.inkSoft, fontFamily: FONTS.bodyRegular, fontSize: 15 },
+ 
+   hint: { fontSize: 11.5, color: COLORS.inkSoft, lineHeight: 16, marginBottom: 10 },
++  soundRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+ 
+   langRow: { flexDirection: 'row', gap: 8 },
+   langBtn: { flex: 1, paddingVertical: 11, alignItems: 'center', borderRadius: 8, borderWidth: 2, borderColor: COLORS.line, backgroundColor: COLORS.bg },
+diff --git a/src/theme.js b/src/theme.js
+index 898095a..36b375a 100644
+--- a/src/theme.js
++++ b/src/theme.js
+@@ -21,6 +21,13 @@ export const COLORS = {
+   electro: '#29D3FF',
+   agua: '#F3E8AE',
+   mostarda: '#E3AC2E',
++  coral: '#E8503A',
++
++  // Azul primário Bauhaus — fecha o trio clássico (vermelho/coral,
++  // amarelo/mostarda, azul) para as fases dos badges (especificação
++  // v2, secção 6, 12/09/2026). Distinto do `electro` (ciano, usado na
++  // navegação) para não confundir os dois vocabulários visuais.
++  azul: '#2A46C4',
+ };
+ 
+ // Colors that need dark text on top of them for contrast (light backgrounds).
+diff --git a/src/utils/badges.js b/src/utils/badges.js
+new file mode 100644
+index 0000000..ae23d65
+--- /dev/null
++++ b/src/utils/badges.js
+@@ -0,0 +1,253 @@
++// Badges e travessias — especificação v2, secções 2 e 3 (12/09/2026),
++// implementados a 19/09/2026.
++//
++// Este ficheiro é puro (sem Supabase, sem React): recebe o histórico de
++// dias do utilizador + os campos atuais, e devolve travessias e badges
++// já calculados. `src/context/DataContext.js` é quem chama isto depois
++// de cada gravação e sincroniza o resultado com as tabelas `cycles` e
++// `badges` (ver supabase/sql/badges_cycles.sql).
++//
++// Duas aproximações assumidas de propósito (confirmadas com a Tania a
++// 19/09/2026, para não bloquear a entrega à espera de funcionalidades
++// que ainda não existem):
++//
++//   1. Badge #5 "Primeira fruta" (registos antes das 10h) usa a nova
++//      coluna `first_logged_at` (carimbo real de quando o dia foi
++//      tocado pela primeira vez) — não existe ainda histórico para
++//      dias gravados antes desta versão, por isso só conta a partir de
++//      agora.
++//   2. Badge #7 "Salto" (spec: "modo mini (1%) usado em 5 dias
++//      diferentes") não tem, ainda, um "modo mini" na app. Aproximação:
++//      conta como "salto" um dia em que um campo de contagem foi
++//      registado com o valor mais pequeno possível (== ao seu `step`,
++//      ou seja, um toque simbólico) sem chegar à meta — o equivalente a
++//      "fiz só um bocadinho, mas fiz".
++//
++// Regra de prioridade num dia com mais do que um badge a bater ponto
++// (secção 2, "máximo um badge por dia"): #10 Orgulho nu ganha sempre a
++// #3 Planeio (recomendação da própria especificação — "(b) Separar",
++// prioridade ao comportamento mais difícil); para o resto, ganha o de
++// número mais baixo. A parte de "guardar o outro para o dia seguinte"
++// não está implementada — colisões fora do par #3/#10 são
++// extremamente raras (a maioria dos critérios só pode calhar num dia
++// muito específico da travessia) e o custo de manter uma fila de
++// badges "em espera" não compensava para este caso limite.
++
++import { fieldOk } from './fields';
++
++export const BADGE_ORDER = ['b1', 'b2', 'b3', 'b4', 'b5', 'b6', 'b7', 'b8', 'b9', 'b10', 'b11', 'b12'];
++
++// Ordem de desempate: #10 primeiro (prioridade explícita sobre #3),
++// depois ordem numérica normal.
++const PRIORITY = ['b10', 'b1', 'b2', 'b3', 'b4', 'b5', 'b6', 'b7', 'b8', 'b9', 'b11', 'b12'];
++
++export const PHASES = {
++  entrada: { key: 'entrada', color: 'mostarda' },
++  honestidade: { key: 'honestidade', color: 'coral' },
++  consolidacao: { key: 'consolidacao', color: 'agua' },
++  longo: { key: 'longo', color: 'azul' },
++};
++
++// `shape` é lido por src/components/BadgeIcon.js — ver secção 6 da
++// especificação (vocabulário Bauhaus: círculo, quadrado, triângulo,
++// meio-círculo, arco).
++export const BADGE_DEFS = {
++  b1: { order: 1, kind: 'unique', phase: 'entrada', shape: 'dot', i18n: 'b1' },
++  b2: { order: 2, kind: 'unique', phase: 'entrada', shape: 'tri1', i18n: 'b2' },
++  b3: { order: 3, kind: 'repeatable', phase: 'entrada', shape: 'square', i18n: 'b3' },
++  b4: { order: 4, kind: 'repeatable', phase: 'honestidade', shape: 'arc', i18n: 'b4' },
++  b5: { order: 5, kind: 'repeatable', phase: 'honestidade', shape: 'half', i18n: 'b5' },
++  b6: { order: 6, kind: 'unique', phase: 'honestidade', shape: 'circleSquare', i18n: 'b6' },
++  b7: { order: 7, kind: 'repeatable', phase: 'consolidacao', shape: 'hop', i18n: 'b7' },
++  b8: { order: 8, kind: 'unique', phase: 'consolidacao', shape: 'tri2', i18n: 'b8' },
++  b9: { order: 9, kind: 'repeatable', phase: 'consolidacao', shape: 'halfRot', i18n: 'b9' },
++  b10: { order: 10, kind: 'repeatable', phase: 'consolidacao', shape: 'bareHead', i18n: 'b10' },
++  b11: { order: 11, kind: 'unique', phase: 'longo', shape: 'tri3', i18n: 'b11' },
++  b12: { order: 12, kind: 'unique', phase: 'longo', shape: 'triCircle', i18n: 'b12' },
++};
++
++export function isUnique(badgeId) {
++  return BADGE_DEFS[badgeId]?.kind === 'unique';
++}
++
++function diffDays(a, b) {
++  // a, b: 'YYYY-MM-DD'. Devolve a - b em dias inteiros.
++  const da = new Date(a + 'T00:00:00Z');
++  const db = new Date(b + 'T00:00:00Z');
++  return Math.round((da - db) / 86400000);
++}
++
++// Um dia "com registo" — qualquer campo preenchido (âncora ou
++// observação) ou energia marcada. Não depende dos campos atuais
++// existirem, só do que ficou gravado nesse dia (fields.js#hasAnyLog
++// exige a lista de campos; aqui não a temos sempre disponível para
++// dias históricos com campos entretanto apagados).
++function hasAnyLogHistoric(day) {
++  if (day.mood) return true;
++  return Object.values(day.custom || {}).some((v) => v === true || (typeof v === 'number' && v > 0));
++}
++
++// Verifica se, num dia, NENHUMA das âncoras que existiam nesse
++// registo (fotografia `anchor_ids`, secção 1.3 ponto 4) foi cumprida.
++// Exige pelo menos uma âncora conhecida nesse dia — um dia sem âncoras
++// definidas não é "planeio", é só um dia sem esse conceito ainda.
++function zeroAnchorsFulfilled(day, fieldsById) {
++  const ids = day.anchor_ids || [];
++  const knownAnchors = ids.map((id) => fieldsById[id]).filter(Boolean);
++  if (knownAnchors.length === 0) return false;
++  return knownAnchors.every((f) => !fieldOk(day, f));
++}
++
++function isEarlyLog(day) {
++  if (!day.first_logged_at) return false;
++  const hour = new Date(day.first_logged_at).getHours();
++  return hour < 10;
++}
++
++// Aproximação do "modo mini" — ver nota no topo do ficheiro.
++function isHopDay(day, fieldsById) {
++  const ids = day.anchor_ids || Object.keys(day.custom || {});
++  return Object.keys(day.custom || {}).some((id) => {
++    const f = fieldsById[id];
++    if (!f || f.type !== 'count') return false;
++    const v = day.custom[id];
++    const step = f.step || 1;
++    if (!(v > 0)) return false;
++    if (f.target && v >= f.target) return false; // chegou à meta, não é "só um bocadinho"
++    return v <= step;
++  });
++}
++
++/**
++ * @param {Array} daysRows - todas as linhas de `days` do utilizador,
++ *   cada uma com { date, custom, mood, therapy, perfect, anchor_ids,
++ *   first_logged_at }, em qualquer ordem.
++ * @param {Array} customFields - campos atuais (para saber tipo/target
++ *   das âncoras guardadas em anchor_ids, e dos campos de contagem para
++ *   o badge #7).
++ * @returns {{ cycles: Array, earned: Array }}
++ *   cycles: [{ number, id, startedOn, daysLogged }]  (o último pode
++ *     ainda estar "aberto", sem ended_on — fecho fica a cargo de quem
++ *     sincroniza com a BD, comparando com a data de hoje)
++ *   earned: [{ badgeId, date, cycleId, cycleNumber }]  — uma entrada
++ *     por dia com um badge atribuído.
++ */
++export function evaluateBadgesAndCycles(daysRows, customFields) {
++  const fieldsById = {};
++  customFields.forEach((f) => { fieldsById[f.id] = f; });
++
++  const loggedDays = (daysRows || [])
++    .filter(hasAnyLogHistoric)
++    .slice()
++    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
++
++  const cycles = [];
++  let currentCycle = null;
++  let prevDate = null;
++  let earlyLogCount = 0;
++  let hopCount = 0;
++  let energyCount = 0;
++  const earned = [];
++
++  for (const day of loggedDays) {
++    const gap = prevDate ? diffDays(day.date, prevDate) : null;
++    if (!currentCycle || gap > 30) {
++      currentCycle = {
++        number: cycles.length + 1,
++        id: `cycle-${day.date}`,
++        startedOn: day.date,
++        lastDate: day.date,
++        daysLogged: 0,
++      };
++      cycles.push(currentCycle);
++    }
++    currentCycle.daysLogged += 1;
++    currentCycle.lastDate = day.date;
++    const n = currentCycle.daysLogged;
++
++    const candidates = [];
++    if (n === 1) candidates.push('b1');
++    if (n === 3) candidates.push('b2');
++    if (n === 7) candidates.push('b6');
++    if (n === 12) candidates.push('b8');
++    if (n === 20) candidates.push('b11');
++    if (n === 31) candidates.push('b12');
++
++    // "De volta ao oco" — regressou depois de ≥3 dias sem registar
++    // (gap em dias de calendário ≥ 4: prev + 3 dias de silêncio + hoje).
++    if (gap !== null && gap >= 4) candidates.push('b4');
++
++    if (day.mood) {
++      energyCount += 1;
++      if (energyCount % 10 === 0) candidates.push('b9');
++    }
++    if (isEarlyLog(day)) {
++      earlyLogCount += 1;
++      if (earlyLogCount % 5 === 0) candidates.push('b5');
++    }
++    if (isHopDay(day, fieldsById)) {
++      hopCount += 1;
++      if (hopCount % 5 === 0) candidates.push('b7');
++    }
++
++    const zeroAnchors = zeroAnchorsFulfilled(day, fieldsById);
++    const proud = !!day.therapy;
++    if (zeroAnchors && proud) candidates.push('b10');
++    else if (zeroAnchors) candidates.push('b3');
++
++    if (candidates.length) {
++      candidates.sort((a, b) => PRIORITY.indexOf(a) - PRIORITY.indexOf(b));
++      const winner = candidates[0];
++      earned.push({
++        badgeId: winner,
++        date: day.date,
++        cycleId: currentCycle.id,
++        cycleNumber: currentCycle.number,
++      });
++    }
++
++    prevDate = day.date;
++  }
++
++  return { cycles, earned };
++}
++
++// Agrupa `earned` num formato pronto para a aba Conquistas: por badge,
++// contagem + datas (mais recente primeiro).
++export function groupEarnedByBadge(earned) {
++  const byBadge = {};
++  earned.forEach((e) => {
++    if (!byBadge[e.badgeId]) byBadge[e.badgeId] = [];
++    byBadge[e.badgeId].push(e);
++  });
++  Object.values(byBadge).forEach((list) => list.sort((a, b) => (a.date < b.date ? 1 : -1)));
++  return byBadge;
++}
++
++// Travessias-fantasma (secção 3, regra 3): menos de 3 dias registados
++// não geram relatório e fundem-se na seguinte. Aplicado só na
++// apresentação (aba Conquistas / futuros relatórios) — as linhas já
++// gravadas em `cycles`/`badges` não são reescritas.
++export function mergeGhostCycles(cycles) {
++  const out = [];
++  for (let i = 0; i < cycles.length; i++) {
++    const c = cycles[i];
++    const isLast = i === cycles.length - 1;
++    if (c.daysLogged < 3 && !isLast) {
++      cycles[i + 1] = {
++        ...cycles[i + 1],
++        startedOn: c.startedOn,
++        daysLogged: cycles[i + 1].daysLogged + c.daysLogged,
++        _mergedFrom: [...(cycles[i + 1]._mergedFrom || []), c.id],
++      };
++      continue;
++    }
++    if (c.daysLogged < 3 && isLast) {
++      // ainda não é uma travessia "a sério" — fica de fora da lista
++      // apresentada, mas os badges desse período continuam válidos.
++      continue;
++    }
++    out.push(c);
++  }
++  return out;
++}
+diff --git a/src/utils/dates.js b/src/utils/dates.js
+index 7bd746b..7fb14f4 100644
+--- a/src/utils/dates.js
++++ b/src/utils/dates.js
+@@ -46,6 +46,16 @@ export function fmtShort(d, lang) {
+   return d.toLocaleDateString(locale, { day: '2-digit', month: 'short' });
+ }
+ 
++// "12 de setembro" — usado para identificar travessias na interface
++// (especificação v2, secção 3: nunca mostrar o número/id internos,
++// só a data, por extenso). Aceita tanto um Date como uma string
++// 'YYYY-MM-DD'.
++export function fmtLongDate(d, lang) {
++  const date = typeof d === 'string' ? new Date(d + 'T00:00:00') : d;
++  const locale = LOCALE_MAP[lang] || LOCALE_MAP.pt;
++  return date.toLocaleDateString(locale, { day: 'numeric', month: 'long' });
++}
++
+ export function weekKey(monday) {
+   return 'week:' + fmt(monday);
+ }
+diff --git a/supabase/sql/badges_cycles.sql b/supabase/sql/badges_cycles.sql
+new file mode 100644
+index 0000000..b3bed8b
+--- /dev/null
++++ b/supabase/sql/badges_cycles.sql
+@@ -0,0 +1,66 @@
++-- Especificação v2 (12/09/2026), secções 2/3/8 — badges e travessias.
++-- Implementado a 19/09/2026.
++--
++-- Como aplicar: Supabase → SQL Editor → cola isto tudo → Run.
++-- Seguro correr mais do que uma vez (idempotente): usa
++-- "IF NOT EXISTS", não apaga nada.
++
++-- 1. `cycles` — uma travessia é o período entre o primeiro registo de um
++--    ciclo e uma interrupção longa (30 dias sem registo, secção 3).
++--    `number` é interno/relatório — nunca mostrado sozinho na interface.
++--    `days_logged` conta dias distintos com registo dentro do ciclo;
++--    ciclos com menos de 3 fundem-se no seguinte (travessia-fantasma,
++--    secção 3, regra 3) — decidido ao nível da app, não da BD.
++CREATE TABLE IF NOT EXISTS cycles (
++  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
++  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
++  number int NOT NULL,
++  started_on date NOT NULL,
++  ended_on date,
++  days_logged int NOT NULL DEFAULT 0,
++  closed_at timestamptz,
++  created_at timestamptz NOT NULL DEFAULT now(),
++  UNIQUE (user_id, number)
++);
++ALTER TABLE cycles ENABLE ROW LEVEL SECURITY;
++DROP POLICY IF EXISTS "cycles_select_own" ON cycles;
++DROP POLICY IF EXISTS "cycles_insert_own" ON cycles;
++DROP POLICY IF EXISTS "cycles_update_own" ON cycles;
++DROP POLICY IF EXISTS "cycles_delete_own" ON cycles;
++CREATE POLICY "cycles_select_own" ON cycles FOR SELECT USING (auth.uid() = user_id);
++CREATE POLICY "cycles_insert_own" ON cycles FOR INSERT WITH CHECK (auth.uid() = user_id);
++CREATE POLICY "cycles_update_own" ON cycles FOR UPDATE USING (auth.uid() = user_id);
++CREATE POLICY "cycles_delete_own" ON cycles FOR DELETE USING (auth.uid() = user_id);
++
++-- 2. `badges` — cada linha é uma conquista ganha numa data. Badges
++--    "únicos" têm uma linha por travessia (secção 2, "renascem a cada
++--    travessia nova"); "repetíveis" têm uma linha por ocorrência e
++--    atravessam travessias sem restrição.
++CREATE TABLE IF NOT EXISTS badges (
++  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
++  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
++  badge_id text NOT NULL,
++  earned_at date NOT NULL,
++  cycle_id uuid REFERENCES cycles(id) ON DELETE SET NULL,
++  created_at timestamptz NOT NULL DEFAULT now(),
++  UNIQUE (user_id, badge_id, earned_at)
++);
++ALTER TABLE badges ENABLE ROW LEVEL SECURITY;
++DROP POLICY IF EXISTS "badges_select_own" ON badges;
++DROP POLICY IF EXISTS "badges_insert_own" ON badges;
++DROP POLICY IF EXISTS "badges_delete_own" ON badges;
++CREATE POLICY "badges_select_own" ON badges FOR SELECT USING (auth.uid() = user_id);
++CREATE POLICY "badges_insert_own" ON badges FOR INSERT WITH CHECK (auth.uid() = user_id);
++CREATE POLICY "badges_delete_own" ON badges FOR DELETE USING (auth.uid() = user_id);
++
++CREATE INDEX IF NOT EXISTS badges_user_badge_idx ON badges (user_id, badge_id);
++CREATE INDEX IF NOT EXISTS badges_user_date_idx ON badges (user_id, earned_at);
++
++-- 3. `first_logged_at` em `days` — carimbo de quando um dia foi tocado
++--    pela primeira vez (não é a data do registo, é o instante real).
++--    Necessário para o badge #5 "Primeira fruta" (registos antes das
++--    10h) — nunca é reescrito depois do primeiro insert, porque não
++--    entra no payload dos upserts seguintes (ver saveDayRemote em
++--    DataContext.js): o Postgres só aplica o DEFAULT no INSERT e
++--    ignora a coluna no UPDATE do upsert.
++ALTER TABLE days ADD COLUMN IF NOT EXISTS first_logged_at timestamptz DEFAULT now();
+-- 
+2.43.0
+

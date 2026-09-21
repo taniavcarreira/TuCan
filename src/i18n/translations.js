@@ -345,6 +345,13 @@ const ENTRIES = [
   ['inapp.openChrome', 'Abrir no Chrome', 'Open in Chrome', 'Ouvrir dans Chrome'],
   ['inapp.copyLink', 'Copiar link', 'Copy link', 'Copier le lien'],
   ['inapp.linkCopied', 'Link copiado!', 'Link copied!', 'Lien copié !'],
+
+  // ---------- aviso de erro ao guardar ----------
+  ['save.errorTitle', 'Não conseguimos guardar', "We couldn't save this", "Impossible d'enregistrer"],
+  ['save.errorBodyOne', 'Um registo teu ainda não chegou a ficar guardado. Nada se perdeu — toca em "Tentar novamente" quando quiseres.', "One of your entries hasn't been saved yet. Nothing is lost — tap \"Try again\" whenever you're ready.", "Une de tes entrées n'a pas encore été enregistrée. Rien n'est perdu — touche « Réessayer » quand tu veux."],
+  ['save.errorBodyMany', '{count} registos teus ainda não chegaram a ficar guardados. Nada se perdeu — toca em "Tentar novamente" quando quiseres.', "{count} of your entries haven't been saved yet. Nothing is lost — tap \"Try again\" whenever you're ready.", "{count} de tes entrées n'ont pas encore été enregistrées. Rien n'est perdu — touche « Réessayer » quand tu veux."],
+  ['save.retry', 'Tentar novamente', 'Try again', 'Réessayer'],
+  ['save.retrying', 'A tentar...', 'Trying...', 'Tentative...'],
 ];
 
 export const translations = { pt: {}, en: {}, fr: {} };

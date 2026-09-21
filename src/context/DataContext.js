@@ -237,6 +237,26 @@ export function DataProvider({ user, children }) {
   // ainda não é lido de volta em lado nenhum (nenhum relatório o usa
   // por agora, ver secção 7 da especificação), só fica pronto na BD
   // para quando os relatórios existirem.
+  //
+  // Robustez de gravação — 21/09/2026: até aqui, um upsert falhado (rede
+  // em baixo, sessão expirada, ou — o caso real que motivou isto — uma
+  // coluna nova que a base de dados ainda não tinha) só ia para
+  // `console.error`. `saveToday`/`saveWeek` já tinham atualizado o
+  // estado local de forma otimista, por isso o ecrã continuava a
+  // mostrar a marca certinha — e o registo desaparecia sozinho na
+  // próxima vez que os dados eram recarregados do Supabase, sem
+  // nenhum aviso. Isto contradiz o princípio 1 da especificação ("a
+  // app recompensa o ato de registar, nunca o ato de cumprir"): um
+  // registo que se perde em silêncio é exatamente o que faz alguém
+  // com PHDA desistir. `failedSavesRef` guarda os dias cuja gravação
+  // ainda não foi confirmada pelo Supabase; `saveErrorCount` (exposto
+  // no contexto) é o que o `SaveErrorBanner` usa para mostrar o aviso
+  // + "Tentar novamente", sem perder os dados (continuam no estado
+  // local/AsyncStorage implícito do próprio React até serem enviados
+  // com sucesso).
+  const failedSavesRef = useRef(new Map()); // dateStr -> dayObj
+  const [saveErrorCount, setSaveErrorCount] = useState(0);
+
   const saveDayRemote = useCallback(async (dateStr, dayObj) => {
     const { error } = await supabase.from('days').upsert({
       user_id: userId,
@@ -247,8 +267,29 @@ export function DataProvider({ user, children }) {
       perfect: dayObj.perfect,
       anchor_ids: anchorFields(customFields).map((f) => f.id),
     }, { onConflict: 'user_id,date' });
-    if (error) console.error('saveDayRemote', error);
+    if (error) {
+      console.error('saveDayRemote', error);
+      failedSavesRef.current.set(dateStr, dayObj);
+      setSaveErrorCount(failedSavesRef.current.size);
+      return false;
+    }
+    failedSavesRef.current.delete(dateStr);
+    setSaveErrorCount(failedSavesRef.current.size);
+    return true;
   }, [userId, customFields]);
+
+  // Reenvia todos os dias com gravação por confirmar (pode ser mais do
+  // que um — ex.: a Tania corrigiu vários dias em atraso na Semana
+  // antes de reparar que nada estava a chegar ao Supabase). Só volta a
+  // sincronizar badges/travessias se pelo menos um reenvio funcionou.
+  const retrySaveError = useCallback(async () => {
+    const pending = Array.from(failedSavesRef.current.entries());
+    if (!pending.length) return;
+    const results = await Promise.all(
+      pending.map(([dateStr, dayObj]) => saveDayRemote(dateStr, dayObj))
+    );
+    if (results.some(Boolean)) syncBadgesAndCycles();
+  }, [saveDayRemote, syncBadgesAndCycles]);
 
   const loadSemana = useCallback(async () => {
     const wd = await fetchWeek(currentMonday);
@@ -431,6 +472,7 @@ export function DataProvider({ user, children }) {
     profile, updateProfile, loadTrendDays,
     badgesData, newBadgeEvent, syncBadgesAndCycles,
     badgeSoundEnabled, setBadgeSoundEnabled,
+    saveErrorCount, retrySaveError,
   }), [
     ready, customFields, currentMonday, weekData, todayWeek, sessions,
     persistCustomFields, loadCustomFields, fieldsInitialized, goToWeek, saveWeek, loadSemana,
@@ -438,6 +480,7 @@ export function DataProvider({ user, children }) {
     profile, updateProfile, loadTrendDays,
     badgesData, newBadgeEvent, syncBadgesAndCycles,
     badgeSoundEnabled, setBadgeSoundEnabled,
+    saveErrorCount, retrySaveError,
   ]);
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

@@ -1,0 +1,46 @@
+From 7faf63a2cd190c58253bbba776a8f33d47960c32 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 17 Sep 2026 16:48:08 +0000
+Subject: [PATCH 2/7] =?UTF-8?q?Regista=20a=20confirma=C3=A7=C3=A3o=20do=20?=
+ =?UTF-8?q?git=20push=20da=20sec=C3=A7=C3=A3o=201=20e=20o=20realinhamento?=
+ =?UTF-8?q?=20do=20workspace?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01MVcQo6j1LDjyQU3oxSNbxF
+---
+ claude/vasy-app-contexto.md | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/claude/vasy-app-contexto.md b/claude/vasy-app-contexto.md
+index 12c215b..30a1060 100644
+--- a/claude/vasy-app-contexto.md
++++ b/claude/vasy-app-contexto.md
+@@ -659,6 +659,22 @@ os cenários. Entregue ao computador da Tania via ponte de dispositivo
+    confirmar que o Perfect! só acende com as âncoras todas e que o
+    ProudOfMe acende com qualquer registo do dia.
+ 
++### Push confirmado — 17/09/2026
++
++A Tania fez `git add`/`commit`/`push` das alterações da secção 1 (código +
++selos visuais na Hoje + tutoriais). Confirmado via `git fetch origin`:
++`origin/main` está agora no commit `ef82bf5`, com o conteúdo a bater
++certo 1:1 com o commit local desta sessão (a única diferença é este
++próprio ficheiro de contexto, que é só local, nunca vai para o
++repositório dela). Workspace cloud realinhado com `git checkout -B main
++origin/main` logo a seguir, para os próximos diffs partirem de terreno
++verificado.
++
++Falta confirmar com ela: se já correu o SQL
++`supabase/sql/anchor_observation_fields.sql` no Supabase (sem isso, o
++`kind`/`anchor_ids` não existem na BD e o upsert de campos/dias falha
++em silêncio ou cai sempre em "anchor" por omissão).
++
+ ### Por fazer (secções 2–12, só quando a Tania pedir)
+ 
+ Badges (12 iniciais), travessias (ciclos com corte aos 30 dias, fecho
+-- 
+2.43.0
+

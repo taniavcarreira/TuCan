@@ -1,0 +1,678 @@
+From 5b3f8329fb13348202b248bc9e9d7ae2ee42167a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 19 Sep 2026 15:20:12 +0000
+Subject: [PATCH 6/7] =?UTF-8?q?Adiciona=20calend=C3=A1rio=20mensal=20com?=
+ =?UTF-8?q?=20partilha=20(branch=20em=20paralelo)?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Ecrã novo acessível a partir da aba Conquistas: grelha mensal inspirada
+no calendário do YaZio, adaptada aos princípios da especificação v2
+(secção 0) - sem X vermelho em dias sem registo (reenquadramento, não
+avaliação), sem número de peso ou percentagem (nada que alimente
+compulsão), três estados por dia (todas as âncoras / algum registo /
+sem registo). Botão de partilha tira um screenshot do cartão e abre a
+folha de partilha nativa no telemóvel (WhatsApp/email/etc. incluídos
+automaticamente) ou, no browser, tenta o Web Share API e cai para
+descarregar a imagem quando o browser não suporta partilhar ficheiros.
+
+Corrige também uma incompatibilidade do react-native-view-shot 4.x com
+o React Native Web desta versão do Expo (findNodeHandle falha no
+capture() da biblioteca): no ramo web, chama-se o html2canvas
+diretamente sobre o nó do cartão em vez de depender do capture() da
+biblioteca.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01MVcQo6j1LDjyQU3oxSNbxF
+---
+ App.js                             |  13 +-
+ package-lock.json                  |  74 +++++++
+ package.json                       |   3 +
+ src/i18n/translations.js           |  16 ++
+ src/screens/CalendarShareScreen.js | 324 +++++++++++++++++++++++++++++
+ src/screens/ConquistasScreen.js    |  11 +-
+ src/utils/dates.js                 |  29 +++
+ 7 files changed, 468 insertions(+), 2 deletions(-)
+ create mode 100644 src/screens/CalendarShareScreen.js
+
+diff --git a/App.js b/App.js
+index 27bf443..3526759 100644
+--- a/App.js
++++ b/App.js
+@@ -20,6 +20,7 @@ import HojeScreen from './src/screens/HojeScreen';
+ import SemanaScreen from './src/screens/SemanaScreen';
+ import TreinoScreen from './src/screens/TreinoScreen';
+ import ConquistasScreen from './src/screens/ConquistasScreen';
++import CalendarShareScreen from './src/screens/CalendarShareScreen';
+ import ConfigScreen from './src/screens/ConfigScreen';
+ import ProfileScreen from './src/screens/ProfileScreen';
+ import BottomNav from './src/components/BottomNav';
+@@ -120,6 +121,7 @@ function Root() {
+   const [tab, setTab] = useState('hoje');
+   const [configOpen, setConfigOpen] = useState(false);
+   const [profileOpen, setProfileOpen] = useState(false);
++  const [calendarOpen, setCalendarOpen] = useState(false);
+   const [confettiTrigger, setConfettiTrigger] = useState(0);
+   const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
+   const { ready, profile, newBadgeEvent, badgeSoundEnabled } = useData();
+@@ -152,6 +154,15 @@ function Root() {
+     );
+   }
+ 
++  if (calendarOpen) {
++    return (
++      <SafeAreaView style={styles.safe}>
++        <StatusBar style="light" />
++        <CalendarShareScreen onClose={() => setCalendarOpen(false)} />
++      </SafeAreaView>
++    );
++  }
++
+   return (
+     <SafeAreaView style={styles.safe}>
+       <StatusBar style="light" />
+@@ -176,7 +187,7 @@ function Root() {
+         {tab === 'hoje' && <HojeScreen onCelebrate={celebrate} onOpenConfig={() => setConfigOpen(true)} />}
+         {tab === 'semana' && <SemanaScreen />}
+         {tab === 'treino' && <TreinoScreen />}
+-        {tab === 'conquistas' && <ConquistasScreen />}
++        {tab === 'conquistas' && <ConquistasScreen onOpenCalendar={() => setCalendarOpen(true)} />}
+       </View>
+ 
+       <BottomNav active={tab} onChange={setTab} />
+diff --git a/package-lock.json b/package-lock.json
+index 95a72f5..9569f31 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -24,13 +24,16 @@
+         "expo-linear-gradient": "~15.0.8",
+         "expo-linking": "^57.0.8",
+         "expo-localization": "~17.0.7",
++        "expo-sharing": "~14.0.8",
+         "expo-status-bar": "~3.0.9",
+         "expo-web-browser": "^57.0.2",
++        "html2canvas": "1.4.1",
+         "react": "19.1.0",
+         "react-dom": "^19.1.0",
+         "react-native": "0.81.5",
+         "react-native-svg": "15.12.1",
+         "react-native-url-polyfill": "^2.0.0",
++        "react-native-view-shot": "^4.0.3",
+         "react-native-web": "^0.21.2"
+       },
+       "devDependencies": {
+@@ -3138,6 +3141,15 @@
+         "node": "18 || 20 || >=22"
+       }
+     },
++    "node_modules/base64-arraybuffer": {
++      "version": "1.0.2",
++      "resolved": "https://registry.npmjs.org/base64-arraybuffer/-/base64-arraybuffer-1.0.2.tgz",
++      "integrity": "sha512-I3yl4r9QB5ZRY3XuJVEPfc2XhZO6YweFPI+UovAzn+8/hb3oJ6lnysaFcjVpkCPfVWFUDvoZ8kmVDP7WyRtYtQ==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.6.0"
++      }
++    },
+     "node_modules/base64-js": {
+       "version": "1.5.1",
+       "resolved": "https://registry.npmjs.org/base64-js/-/base64-js-1.5.1.tgz",
+@@ -3660,6 +3672,15 @@
+         "hyphenate-style-name": "^1.0.3"
+       }
+     },
++    "node_modules/css-line-break": {
++      "version": "2.1.0",
++      "resolved": "https://registry.npmjs.org/css-line-break/-/css-line-break-2.1.0.tgz",
++      "integrity": "sha512-FHcKFCZcAha3LwfVBhCQbW2nCNbkZXn7KVUJcsT5/P8YmfsVja0FMPJr0B903j/E69HUphKiV9iQArX8SDYA4w==",
++      "license": "MIT",
++      "dependencies": {
++        "utrie": "^1.0.2"
++      }
++    },
+     "node_modules/css-select": {
+       "version": "5.2.2",
+       "resolved": "https://registry.npmjs.org/css-select/-/css-select-5.2.2.tgz",
+@@ -4236,6 +4257,15 @@
+         "node": ">=20.16.0"
+       }
+     },
++    "node_modules/expo-sharing": {
++      "version": "14.0.8",
++      "resolved": "https://registry.npmjs.org/expo-sharing/-/expo-sharing-14.0.8.tgz",
++      "integrity": "sha512-A1pPr2iBrxypFDCWVAESk532HK+db7MFXbvO2sCV9ienaFXAk7lIBm6bkqgE6vzRd9O3RGdEGzYx80cYlc089Q==",
++      "license": "MIT",
++      "peerDependencies": {
++        "expo": "*"
++      }
++    },
+     "node_modules/expo-status-bar": {
+       "version": "3.0.9",
+       "resolved": "https://registry.npmjs.org/expo-status-bar/-/expo-status-bar-3.0.9.tgz",
+@@ -4960,6 +4990,19 @@
+       "integrity": "sha512-JNAzZcXrCt42VGLuYz0zfAzDfAvJWW6AfYlDBQyDV5DClI2m5sAmK+OIO7s59XfsRsWHp02jAJrRadPRGTt6SQ==",
+       "license": "ISC"
+     },
++    "node_modules/html2canvas": {
++      "version": "1.4.1",
++      "resolved": "https://registry.npmjs.org/html2canvas/-/html2canvas-1.4.1.tgz",
++      "integrity": "sha512-fPU6BHNpsyIhr8yyMpTLLxAbkaK8ArIBcmZIRiBLiDhjeqvXolaEmDGmELFuX9I4xDcaKKcJl+TKZLqruBbmWA==",
++      "license": "MIT",
++      "dependencies": {
++        "css-line-break": "^2.1.0",
++        "text-segmentation": "^1.0.3"
++      },
++      "engines": {
++        "node": ">=8.0.0"
++      }
++    },
+     "node_modules/http-errors": {
+       "version": "2.0.1",
+       "resolved": "https://registry.npmjs.org/http-errors/-/http-errors-2.0.1.tgz",
+@@ -7148,6 +7191,19 @@
+         "react-native": "*"
+       }
+     },
++    "node_modules/react-native-view-shot": {
++      "version": "4.0.3",
++      "resolved": "https://registry.npmjs.org/react-native-view-shot/-/react-native-view-shot-4.0.3.tgz",
++      "integrity": "sha512-USNjYmED7C0me02c1DxKA0074Hw+y/nxo+xJKlffMvfUWWzL5ELh/TJA/pTnVqFurIrzthZDPtDM7aBFJuhrHQ==",
++      "license": "MIT",
++      "dependencies": {
++        "html2canvas": "^1.4.1"
++      },
++      "peerDependencies": {
++        "react": "*",
++        "react-native": "*"
++      }
++    },
+     "node_modules/react-native-web": {
+       "version": "0.21.2",
+       "resolved": "https://registry.npmjs.org/react-native-web/-/react-native-web-0.21.2.tgz",
+@@ -7985,6 +8041,15 @@
+         "node": "*"
+       }
+     },
++    "node_modules/text-segmentation": {
++      "version": "1.0.3",
++      "resolved": "https://registry.npmjs.org/text-segmentation/-/text-segmentation-1.0.3.tgz",
++      "integrity": "sha512-iOiPUo/BGnZ6+54OsWxZidGCsdU8YbE4PSpdPinp7DeMtUJNJBoJ/ouUSTJjHkh1KntHaltHl/gDs2FC4i5+Nw==",
++      "license": "MIT",
++      "dependencies": {
++        "utrie": "^1.0.2"
++      }
++    },
+     "node_modules/thenify": {
+       "version": "3.3.1",
+       "resolved": "https://registry.npmjs.org/thenify/-/thenify-3.3.1.tgz",
+@@ -8249,6 +8314,15 @@
+         "node": ">= 0.4.0"
+       }
+     },
++    "node_modules/utrie": {
++      "version": "1.0.2",
++      "resolved": "https://registry.npmjs.org/utrie/-/utrie-1.0.2.tgz",
++      "integrity": "sha512-1MLa5ouZiOmQzUbjbu9VmjLzn1QLXBhwpUa7kdLUQK+KQ5KA9I1vk5U4YHe/X2Ch7PYnJfWuWT+VbuxbGwljhw==",
++      "license": "MIT",
++      "dependencies": {
++        "base64-arraybuffer": "^1.0.2"
++      }
++    },
+     "node_modules/uuid": {
+       "version": "7.0.3",
+       "resolved": "https://registry.npmjs.org/uuid/-/uuid-7.0.3.tgz",
+diff --git a/package.json b/package.json
+index 5aefb70..3e75575 100644
+--- a/package.json
++++ b/package.json
+@@ -26,13 +26,16 @@
+     "expo-linear-gradient": "~15.0.8",
+     "expo-linking": "^57.0.8",
+     "expo-localization": "~17.0.7",
++    "expo-sharing": "~14.0.8",
+     "expo-status-bar": "~3.0.9",
+     "expo-web-browser": "^57.0.2",
++    "html2canvas": "1.4.1",
+     "react": "19.1.0",
+     "react-dom": "^19.1.0",
+     "react-native": "0.81.5",
+     "react-native-svg": "15.12.1",
+     "react-native-url-polyfill": "^2.0.0",
++    "react-native-view-shot": "^4.0.3",
+     "react-native-web": "^0.21.2"
+   },
+   "devDependencies": {
+diff --git a/src/i18n/translations.js b/src/i18n/translations.js
+index 923af68..be996b2 100644
+--- a/src/i18n/translations.js
++++ b/src/i18n/translations.js
+@@ -321,6 +321,22 @@ const ENTRIES = [
+   ['conquistas.noBadgesThatDay', 'Sem badges neste dia.', 'No badges that day.', 'Aucun badge ce jour-là.'],
+   ['conquistas.soundLabel', 'Som dos badges', 'Badge sound', 'Son des badges'],
+   ['conquistas.soundHint', 'O toque curto que ouves sempre que ganhas um badge. Podes desligá-lo a qualquer momento.', 'The short chime you hear whenever you earn a badge. You can turn it off any time.', 'Le petit son que tu entends à chaque badge gagné. Tu peux le désactiver à tout moment.'],
++  ['conquistas.openCalendar', 'Ver calendário mensal', 'View monthly calendar', 'Voir le calendrier mensuel'],
++
++  // ---------- calendário de partilha (20/09/2026) ----------
++  ['calendar.title', 'Calendário', 'Calendar', 'Calendrier'],
++  ['calendar.legendFull', 'Todas as âncoras', 'All anchors', 'Toutes les ancres'],
++  ['calendar.legendPartial', 'Registaste', 'You logged', 'Tu as enregistré'],
++  ['calendar.legendNone', 'Sem registo', 'No log', 'Aucun enregistrement'],
++  ['calendar.statCrossing', 'Travessia atual', 'Current crossing', 'Traversée actuelle'],
++  ['calendar.statCrossingDays', '{n} dias', '{n} days', '{n} jours'],
++  ['calendar.statLogged', 'Registados este mês', 'Logged this month', 'Enregistrés ce mois-ci'],
++  ['calendar.statBadges', 'Badges este mês', 'Badges this month', 'Badges ce mois-ci'],
++  ['calendar.shareButton', 'Partilhar', 'Share', 'Partager'],
++  ['calendar.shareTitle', 'O meu progresso na TuCAN!', 'My progress on TuCAN!', 'Ma progression sur TuCAN!'],
++  ['calendar.shareDownloaded', 'A imagem foi descarregada — anexa-a à conversa que preferires (WhatsApp, email, ou outra).', 'The image was downloaded — attach it to whichever chat you like (WhatsApp, email, or another).', "L'image a été téléchargée — joins-la à la conversation de ton choix (WhatsApp, e-mail, ou autre)."],
++  ['calendar.shareError', 'Não foi possível preparar a imagem. Tenta outra vez.', 'Could not prepare the image. Try again.', "Impossible de préparer l'image. Réessaie."],
++  ['calendar.preparingShare', 'A preparar...', 'Preparing...', 'Préparation...'],
+ 
+   // ---------- aviso de navegador incorporado ----------
+   ['inapp.title', 'Estás a abrir isto dentro do {name}', "You're opening this inside {name}", 'Tu ouvres ceci dans {name}'],
+diff --git a/src/screens/CalendarShareScreen.js b/src/screens/CalendarShareScreen.js
+new file mode 100644
+index 0000000..a2841d5
+--- /dev/null
++++ b/src/screens/CalendarShareScreen.js
+@@ -0,0 +1,324 @@
++import React, { useEffect, useMemo, useRef, useState } from 'react';
++import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Platform, ActivityIndicator } from 'react-native';
++import * as Sharing from 'expo-sharing';
++import ViewShot from 'react-native-view-shot';
++// Só é usado no ramo web do handleShare (ver nota abaixo), mas importa-se
++// estaticamente porque é assim que o próprio react-native-view-shot o usa
++// internamente na sua build web — padrão já validado pelo Metro/Expo.
++import html2canvas from 'html2canvas';
++import Svg, { Path } from 'react-native-svg';
++import { COLORS, FONTS } from '../theme';
++import { useData } from '../context/DataContext';
++import { useLanguage } from '../i18n/LanguageContext';
++import { currentScore, maxScore, fieldValue } from '../utils/fields';
++import { monthGrid, monthLongLabel, todayISO, fmt } from '../utils/dates';
++
++// Calendário de partilha — pedido da Tania a 20/09/2026, inspirado no
++// ecrã de streak do YaZio (imagem em anexo na conversa), mas adaptado
++// aos princípios da secção 0 da especificação:
++//   - NUNCA um X vermelho num dia sem registo — não é uma falha, é só
++//     um dia sem dados (princípio 6, "reenquadramento não avaliação").
++//     Dias sem registo ficam com um contorno neutro, iguais a dias
++//     futuros.
++//   - Sem "Peso" nem qualquer número que alimente compulsão (princípio
++//     5) — o terceiro indicador é "Badges este mês" em vez disso.
++//   - Três estados por dia (não dois): todas as âncoras cumpridas /
++//     algum registo sem cumprir tudo / sem registo — o mesmo modelo já
++//     desenhado para o Bloco 1 do relatório semanal (secção 7.1), só
++//     que agora num mês inteiro em vez de uma semana.
++// Nasce numa branch à parte (`feature/calendario-partilha`) para não
++// mexer no que a Tania está a validar na main.
++
++function ChevronIcon({ dir, color }) {
++  const d = dir === 'left' ? 'M15 6l-6 6 6 6' : 'M9 6l6 6-6 6';
++  return (
++    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.4}>
++      <Path d={d} strokeLinecap="round" strokeLinejoin="round" />
++    </Svg>
++  );
++}
++function ShareIcon({ color }) {
++  return (
++    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.2}>
++      <Path d="M12 3v12M7 8l5-5 5 5M5 15v3a2 2 0 002 2h10a2 2 0 002-2v-3" strokeLinecap="round" strokeLinejoin="round" />
++    </Svg>
++  );
++}
++
++export default function CalendarShareScreen({ onClose }) {
++  const { customFields, loadTrendDays, badgesData } = useData();
++  const { t, language } = useLanguage();
++  const [cursor, setCursor] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() }; });
++  const [daysByDate, setDaysByDate] = useState({});
++  const [loading, setLoading] = useState(true);
++  const [sharing, setSharing] = useState(false);
++  const [note, setNote] = useState('');
++  const shotRef = useRef(null);
++  const cardRef = useRef(null);
++
++  const today = todayISO();
++  const weeks = useMemo(() => monthGrid(cursor.year, cursor.month), [cursor]);
++  // Só a primeira letra maiúscula ("Agosto de 2026", não "Agosto De
++  // 2026") — capitalizar via CSS (textTransform) capitalizaria todas as
++  // palavras, incluindo o "de" em português.
++  const rawMonthLabel = monthLongLabel(cursor.year, cursor.month, language);
++  const monthLabel = rawMonthLabel.charAt(0).toUpperCase() + rawMonthLabel.slice(1);
++
++  useEffect(() => {
++    let cancelled = false;
++    setLoading(true);
++    const fromISO = fmt(new Date(cursor.year, cursor.month, 1));
++    const toISO = fmt(new Date(cursor.year, cursor.month + 1, 0));
++    loadTrendDays(fromISO, toISO).then((rows) => {
++      if (cancelled) return;
++      const map = {};
++      rows.forEach((r) => { map[r.date] = r; });
++      setDaysByDate(map);
++      setLoading(false);
++    });
++    return () => { cancelled = true; };
++  }, [cursor, loadTrendDays]);
++
++  function dayState(dateStr) {
++    if (dateStr > today) return 'future';
++    const day = daysByDate[dateStr];
++    if (!day) return 'none';
++    const max = maxScore(customFields);
++    const score = currentScore(day, customFields);
++    const anyLog = day.mood > 0 || customFields.some((f) => {
++      const v = fieldValue(day, f);
++      return f.type === 'bool' ? !!v : v > 0;
++    });
++    if (max > 0 && score === max) return 'full';
++    if (anyLog) return 'partial';
++    return 'none';
++  }
++
++  const loggedCount = Object.values(daysByDate).filter((day) => {
++    return day.mood > 0 || customFields.some((f) => {
++      const v = fieldValue(day, f);
++      return f.type === 'bool' ? !!v : v > 0;
++    });
++  }).length;
++  const daysInMonth = new Date(cursor.year, cursor.month + 1, 0).getDate();
++
++  const badgesThisMonth = useMemo(() => {
++    const prefix = `${cursor.year}-${String(cursor.month + 1).padStart(2, '0')}`;
++    let n = 0;
++    Object.values(badgesData.byBadge || {}).forEach((list) => {
++      list.forEach((e) => { if (e.date.startsWith(prefix)) n++; });
++    });
++    return n;
++  }, [badgesData, cursor]);
++
++  const liveCycle = badgesData.cycles && badgesData.cycles.length ? badgesData.cycles[badgesData.cycles.length - 1] : null;
++
++  function changeMonth(delta) {
++    setCursor((c) => {
++      const d = new Date(c.year, c.month + delta, 1);
++      return { year: d.getFullYear(), month: d.getMonth() };
++    });
++  }
++
++  async function handleShare() {
++    setNote('');
++    setSharing(true);
++    try {
++      let uri;
++      if (Platform.OS === 'web') {
++        // react-native-view-shot 4.x resolve a view via findNodeHandle
++        // antes de chamar a implementação web — e essa resolução falha
++        // nesta combinação de Expo/react-native-web ("findNodeHandle is
++        // not supported on web"). Em vez de depender do capture() da
++        // biblioteca, chamamos o html2canvas diretamente sobre o nó DOM
++        // do cartão: no react-native-web, a ref de uma <View> já é o
++        // próprio elemento DOM (View faz forwardRef para o host), por
++        // isso cardRef.current serve tal e qual.
++        const canvas = await html2canvas(cardRef.current, { backgroundColor: null });
++        uri = canvas.toDataURL('image/png', 0.95);
++      } else {
++        // iOS/Android: caminho nativo normal da biblioteca.
++        uri = await shotRef.current.capture();
++      }
++
++      if (Platform.OS === 'web') {
++        // O Web Share API só consegue anexar ficheiros reais (não um
++        // link), por isso convertemos para um File e tentamos partilhar;
++        // se o browser não suportar partilha de ficheiros (a maioria dos
++        // desktops), descarregamos a imagem e explicamos à pessoa como
++        // a anexar à mão.
++        const res = await fetch(uri);
++        const blob = await res.blob();
++        const file = new File([blob], 'tucan-progresso.png', { type: 'image/png' });
++        if (navigator.canShare && navigator.canShare({ files: [file] })) {
++          await navigator.share({ files: [file], title: t('calendar.shareTitle') });
++        } else {
++          const a = document.createElement('a');
++          a.href = uri;
++          a.download = 'tucan-progresso.png';
++          document.body.appendChild(a);
++          a.click();
++          document.body.removeChild(a);
++          setNote(t('calendar.shareDownloaded'));
++        }
++      } else {
++        // iOS/Android: a folha de partilha nativa já lista WhatsApp,
++        // Email, Mensagens, etc. — exatamente o pedido original.
++        const available = await Sharing.isAvailableAsync();
++        if (available) {
++          await Sharing.shareAsync(uri, { dialogTitle: t('calendar.shareTitle') });
++        } else {
++          setNote(t('calendar.shareError'));
++        }
++      }
++    } catch (e) {
++      console.error('CalendarShareScreen share', e);
++      setNote(t('calendar.shareError'));
++    } finally {
++      setSharing(false);
++    }
++  }
++
++  return (
++    <ScrollView style={styles.screen} contentContainerStyle={{ paddingBottom: 40 }}>
++      <View style={styles.headerRow}>
++        <Text style={styles.h1}>{t('calendar.title')}</Text>
++        {onClose && (
++          <TouchableOpacity onPress={onClose}><Text style={styles.closeText}>{t('common.close')}</Text></TouchableOpacity>
++        )}
++      </View>
++
++      <ViewShot ref={shotRef} options={{ format: 'png', quality: 0.95, result: 'tmpfile' }}>
++        <View ref={cardRef} style={styles.shareCard}>
++          <View style={styles.brandRow}>
++            <Text style={styles.brandText}>{t('common.appName')}</Text>
++          </View>
++
++          <View style={styles.monthRow}>
++            <TouchableOpacity onPress={() => changeMonth(-1)} style={styles.navBtn}>
++              <ChevronIcon dir="left" color={COLORS.ink} />
++            </TouchableOpacity>
++            <Text style={styles.monthLabel}>{monthLabel}</Text>
++            <TouchableOpacity onPress={() => changeMonth(1)} style={styles.navBtn}>
++              <ChevronIcon dir="right" color={COLORS.ink} />
++            </TouchableOpacity>
++          </View>
++
++          <View style={styles.weekHeaderRow}>
++            {['S', 'T', 'Q', 'Q', 'S', 'S', 'D'].map((d, i) => (
++              <Text key={i} style={styles.weekHeaderText}>{d}</Text>
++            ))}
++          </View>
++
++          {loading ? (
++            <ActivityIndicator color={COLORS.electro} style={{ marginVertical: 30 }} />
++          ) : (
++            weeks.map((week, wi) => (
++              <View key={wi} style={styles.weekRow}>
++                {week.map((cell, ci) => {
++                  if (!cell) return <View key={ci} style={styles.dayCell} />;
++                  const state = dayState(cell.date);
++                  return (
++                    <View key={ci} style={styles.dayCell}>
++                      <View style={[
++                        styles.dayCircle,
++                        state === 'full' && styles.dayCircleFull,
++                        state === 'partial' && styles.dayCirclePartial,
++                        state === 'none' && styles.dayCircleNone,
++                        state === 'future' && styles.dayCircleFuture,
++                      ]}>
++                        <Text style={[
++                          styles.dayNumber,
++                          (state === 'full' || state === 'partial') && styles.dayNumberOnColor,
++                        ]}>{cell.day}</Text>
++                      </View>
++                    </View>
++                  );
++                })}
++              </View>
++            ))
++          )}
++
++          <View style={styles.legendRow}>
++            <View style={styles.legendItem}><View style={[styles.legendDot, styles.dayCircleFull]} /><Text style={styles.legendText}>{t('calendar.legendFull')}</Text></View>
++            <View style={styles.legendItem}><View style={[styles.legendDot, styles.dayCirclePartial]} /><Text style={styles.legendText}>{t('calendar.legendPartial')}</Text></View>
++            <View style={styles.legendItem}><View style={[styles.legendDot, styles.dayCircleNone]} /><Text style={styles.legendText}>{t('calendar.legendNone')}</Text></View>
++          </View>
++
++          <View style={styles.statsRow}>
++            <View style={styles.statItem}>
++              <Text style={styles.statValue}>{liveCycle ? t('calendar.statCrossingDays', { n: liveCycle.daysLogged }) : '—'}</Text>
++              <Text style={styles.statLabel}>{t('calendar.statCrossing')}</Text>
++            </View>
++            <View style={styles.statItem}>
++              <Text style={styles.statValue}>{loggedCount}/{daysInMonth}</Text>
++              <Text style={styles.statLabel}>{t('calendar.statLogged')}</Text>
++            </View>
++            <View style={styles.statItem}>
++              <Text style={styles.statValue}>{badgesThisMonth}</Text>
++              <Text style={styles.statLabel}>{t('calendar.statBadges')}</Text>
++            </View>
++          </View>
++        </View>
++      </ViewShot>
++
++      <TouchableOpacity style={styles.shareBtn} onPress={handleShare} disabled={sharing}>
++        {sharing ? (
++          <>
++            <ActivityIndicator color="#fff" size="small" />
++            <Text style={styles.shareBtnText}>{t('calendar.preparingShare')}</Text>
++          </>
++        ) : (
++          <>
++            <ShareIcon color="#fff" />
++            <Text style={styles.shareBtnText}>{t('calendar.shareButton')}</Text>
++          </>
++        )}
++      </TouchableOpacity>
++
++      {!!note && <Text style={styles.note}>{note}</Text>}
++    </ScrollView>
++  );
++}
++
++const styles = StyleSheet.create({
++  screen: { flex: 1, paddingHorizontal: 16, paddingTop: 18 },
++  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 },
++  h1: { fontFamily: FONTS.display, fontSize: 22, color: COLORS.ink },
++  closeText: { color: COLORS.electro, fontFamily: FONTS.bodyBold, fontSize: 13 },
++
++  shareCard: { backgroundColor: COLORS.card, borderRadius: 16, borderWidth: 2, borderColor: COLORS.line, padding: 18 },
++  brandRow: { alignItems: 'center', marginBottom: 4 },
++  brandText: { fontFamily: FONTS.display, fontSize: 15, color: COLORS.ink, letterSpacing: 0.5 },
++
++  monthRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 14, marginTop: 8, marginBottom: 14 },
++  navBtn: { padding: 6 },
++  monthLabel: { fontFamily: FONTS.bodyBold, fontSize: 16, color: COLORS.ink, minWidth: 150, textAlign: 'center' },
++
++  weekHeaderRow: { flexDirection: 'row', marginBottom: 6 },
++  weekHeaderText: { flex: 1, textAlign: 'center', fontSize: 11, color: COLORS.inkSoft, fontFamily: FONTS.bodyBold },
++
++  weekRow: { flexDirection: 'row' },
++  dayCell: { flex: 1, aspectRatio: 1, alignItems: 'center', justifyContent: 'center' },
++  dayCircle: { width: '78%', height: '78%', borderRadius: 999, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: 'transparent' },
++  dayCircleFull: { backgroundColor: COLORS.sporting },
++  dayCirclePartial: { backgroundColor: COLORS.mostarda },
++  dayCircleNone: { borderColor: COLORS.line },
++  dayCircleFuture: { borderColor: 'transparent' },
++  dayNumber: { fontSize: 12, color: COLORS.inkSoft, fontFamily: FONTS.bodyRegular },
++  dayNumberOnColor: { color: '#fff', fontFamily: FONTS.bodyBold },
++
++  legendRow: { flexDirection: 'row', justifyContent: 'center', gap: 16, marginTop: 12, marginBottom: 4, flexWrap: 'wrap' },
++  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
++  legendDot: { width: 10, height: 10, borderRadius: 5 },
++  legendText: { fontSize: 10.5, color: COLORS.inkSoft },
++
++  statsRow: { flexDirection: 'row', marginTop: 16, borderTopWidth: 1, borderTopColor: COLORS.line, paddingTop: 14 },
++  statItem: { flex: 1, alignItems: 'center', gap: 3 },
++  statValue: { fontFamily: FONTS.display, fontSize: 17, color: COLORS.ink },
++  statLabel: { fontSize: 9.5, color: COLORS.inkSoft, textAlign: 'center', textTransform: 'uppercase', letterSpacing: 0.3 },
++
++  shareBtn: { marginTop: 20, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.electro, borderRadius: 10, paddingVertical: 14 },
++  shareBtnText: { color: '#fff', fontFamily: FONTS.display, fontSize: 14 },
++  note: { color: COLORS.inkSoft, fontSize: 12, textAlign: 'center', marginTop: 12, lineHeight: 17, paddingHorizontal: 10 },
++});
+diff --git a/src/screens/ConquistasScreen.js b/src/screens/ConquistasScreen.js
+index 286ffaa..fdbe427 100644
+--- a/src/screens/ConquistasScreen.js
++++ b/src/screens/ConquistasScreen.js
+@@ -25,7 +25,7 @@ function useAllEarned(byBadge) {
+   }, [byBadge]);
+ }
+ 
+-export default function ConquistasScreen() {
++export default function ConquistasScreen({ onOpenCalendar }) {
+   const { badgesData } = useData();
+   const { t, language } = useLanguage();
+   const [subTab, setSubTab] = useState('collection');
+@@ -71,6 +71,12 @@ export default function ConquistasScreen() {
+         </View>
+       )}
+ 
++      {onOpenCalendar && (
++        <TouchableOpacity style={styles.calendarBtn} onPress={onOpenCalendar}>
++          <Text style={styles.calendarBtnText}>{t('conquistas.openCalendar')}</Text>
++        </TouchableOpacity>
++      )}
++
+       <View style={styles.tabsRow}>
+         {[
+           ['collection', t('conquistas.tabCollection')],
+@@ -197,6 +203,9 @@ const styles = StyleSheet.create({
+   crossingDate: { fontFamily: FONTS.display, fontSize: 16, color: COLORS.ink },
+   crossingDays: { fontSize: 12.5, color: COLORS.inkSoft, marginTop: 3 },
+ 
++  calendarBtn: { borderWidth: 2, borderColor: COLORS.line, borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginBottom: 16 },
++  calendarBtnText: { color: COLORS.ink, fontFamily: FONTS.bodyBold, fontSize: 13 },
++
+   tabsRow: { flexDirection: 'row', gap: 8, marginBottom: 18 },
+   subTabBtn: { flex: 1, paddingVertical: 9, alignItems: 'center', borderRadius: 8, borderWidth: 2, borderColor: COLORS.line, backgroundColor: COLORS.bg },
+   subTabBtnActive: { backgroundColor: COLORS.electro, borderColor: COLORS.electro },
+diff --git a/src/utils/dates.js b/src/utils/dates.js
+index 7fb14f4..a3214f1 100644
+--- a/src/utils/dates.js
++++ b/src/utils/dates.js
+@@ -68,3 +68,32 @@ export function monthLabelPt(y, m, lang) {
+ export function todayISO() {
+   return new Date().toISOString().slice(0, 10);
+ }
++
++// "Setembro de 2026" — cabeçalho do calendário mensal (ecrã de
++// partilha, 20/09/2026). `month` é 0-based (0 = janeiro), como em Date.
++export function monthLongLabel(year, month, lang) {
++  const locale = LOCALE_MAP[lang] || LOCALE_MAP.pt;
++  return new Date(year, month, 1).toLocaleDateString(locale, { month: 'long', year: 'numeric' });
++}
++
++// Grelha de um mês para o calendário de partilha — semanas começam à
++// segunda-feira (mesma convenção da Semana), células antes do dia 1 e
++// depois do último dia ficam `null` para preencher a grelha 7 colunas.
++// Devolve um array de semanas, cada uma um array de 7 { date, day } | null.
++export function monthGrid(year, month) {
++  const first = new Date(year, month, 1);
++  const daysInMonth = new Date(year, month + 1, 0).getDate();
++  const firstWeekday = (first.getDay() + 6) % 7; // 0 = segunda
++
++  const cells = [];
++  for (let i = 0; i < firstWeekday; i++) cells.push(null);
++  for (let day = 1; day <= daysInMonth; day++) {
++    const d = new Date(year, month, day);
++    cells.push({ date: fmt(d), day });
++  }
++  while (cells.length % 7 !== 0) cells.push(null);
++
++  const weeks = [];
++  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
++  return weeks;
++}
+-- 
+2.43.0
+
