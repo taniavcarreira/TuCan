@@ -344,6 +344,8 @@ const ENTRIES = [
   ['calendar.preparingShareProgress', 'A preparar {current} de {total}...', 'Preparing {current} of {total}...', 'Préparation {current} sur {total}...'],
   // seletor + swipe em vez dos chips (23/09/2026)
   ['calendar.swipeHint', 'Desliza o calendário para o lado para veres outro campo', 'Swipe the calendar sideways to see another field', 'Fais glisser le calendrier sur le côté pour voir un autre champ'],
+  ['calendar.reportSubtitle', 'Resumo do mês', 'Month summary', 'Résumé du mois'],
+  ['calendar.reportFieldsHeading', 'Por campo', 'By field', 'Par champ'],
 
   // ---------- aviso de navegador incorporado ----------
   ['inapp.title', 'Estás a abrir isto dentro do {name}', "You're opening this inside {name}", 'Tu ouvres ceci dans {name}'],
