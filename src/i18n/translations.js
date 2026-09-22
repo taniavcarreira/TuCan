@@ -334,9 +334,14 @@ const ENTRIES = [
   ['calendar.statBadges', 'Badges este mês', 'Badges this month', 'Badges ce mois-ci'],
   ['calendar.shareButton', 'Partilhar', 'Share', 'Partager'],
   ['calendar.shareTitle', 'O meu progresso na TuCAN!', 'My progress on TuCAN!', 'Ma progression sur TuCAN!'],
-  ['calendar.shareDownloaded', 'A imagem foi descarregada — anexa-a à conversa que preferires (WhatsApp, email, ou outra).', 'The image was downloaded — attach it to whichever chat you like (WhatsApp, email, or another).', "L'image a été téléchargée — joins-la à la conversation de ton choix (WhatsApp, e-mail, ou autre)."],
-  ['calendar.shareError', 'Não foi possível preparar a imagem. Tenta outra vez.', 'Could not prepare the image. Try again.', "Impossible de préparer l'image. Réessaie."],
+  ['calendar.shareDownloaded', 'O PDF foi descarregado — anexa-o à conversa que preferires (WhatsApp, email, ou outra).', 'The PDF was downloaded — attach it to whichever chat you like (WhatsApp, email, or another).', "Le PDF a été téléchargé — joins-le à la conversation de ton choix (WhatsApp, e-mail, ou autre)."],
+  ['calendar.shareError', 'Não foi possível preparar o PDF. Tenta outra vez.', 'Could not prepare the PDF. Try again.', "Impossible de préparer le PDF. Réessaie."],
   ['calendar.preparingShare', 'A preparar...', 'Preparing...', 'Préparation...'],
+  // filtros por campo + PDF com todos os calendários (21/09/2026)
+  ['calendar.filterAll', 'Todos', 'All', 'Tous'],
+  ['calendar.legendRingHint', 'O anel mostra quanto cumpriste desse campo nesse dia.', 'The ring shows how much of that field you completed that day.', "L'anneau montre la part accomplie de ce champ ce jour-là."],
+  ['calendar.statFieldLogged', '{name} este mês', '{name} this month', '{name} ce mois-ci'],
+  ['calendar.preparingShareProgress', 'A preparar {current} de {total}...', 'Preparing {current} of {total}...', 'Préparation {current} sur {total}...'],
 
   // ---------- aviso de navegador incorporado ----------
   ['inapp.title', 'Estás a abrir isto dentro do {name}', "You're opening this inside {name}", 'Tu ouvres ceci dans {name}'],

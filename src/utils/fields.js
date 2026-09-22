@@ -88,6 +88,20 @@ export function fieldOk(day, f) {
   return f.type === 'bool' ? !!v : v >= f.target;
 }
 
+// Percentagem de cumprimento de UM campo num dia (0 a 1) — usado no
+// calendário de partilha filtrado por campo (21/09/2026): um campo
+// booleano vale 1 (marcado) ou 0 (não marcado); um campo métrico vale
+// valor/meta, limitado a [0,1]. Sem meta definida (campo só com passo,
+// sem alvo), conta como cumprido assim que houver qualquer valor
+// registado, para não ficar sempre a 0%.
+export function fieldPercent(day, f) {
+  const v = fieldValue(day, f);
+  if (f.type === 'bool') return v ? 1 : 0;
+  const target = f.target;
+  if (!target || target <= 0) return v > 0 ? 1 : 0;
+  return Math.max(0, Math.min(1, v / target));
+}
+
 // Sistema âncora/observação (especificação v2, 12/09/2026, secção 1):
 // campos-âncora são o que a pessoa quer mesmo cumprir e contam para o
 // Perfect!/score; campos de observação só servem para olhar para trás,
