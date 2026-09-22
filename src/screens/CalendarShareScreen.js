@@ -77,6 +77,14 @@ import { monthGrid, monthLongLabel, todayISO, fmt } from '../utils/dates';
 // relatório para imprimir... para a psicóloga"). O carrossel/select
 // acima não mudou nada — continua a servir para ver cada calendário no
 // ecrã; só o que o botão Partilhar produz é que mudou.
+//
+// Ainda a 23/09/2026: pedido para acrescentar uma folha com os
+// calendários por campo (dia a dia, não só o anel de adesão do
+// relatório principal). O PDF passa a ter a folha do relatório sempre
+// primeiro, seguida de uma ou mais folhas "por campo" — até 4
+// calendários por folha, uma folha extra por cada grupo de 4 (`chunk`,
+// `FieldCalendarsPage`) — para nenhum campo ficar de fora mesmo com
+// mais do que 4 configurados.
 
 function ChevronIcon({ dir, color }) {
   const d = dir === 'left' ? 'M15 6l-6 6 6 6' : 'M9 6l6 6-6 6';
@@ -116,11 +124,11 @@ function ShareIcon({ color }) {
 // de saber o tamanho em píxeis.
 const RING_R = 42;
 const RING_C = 2 * Math.PI * RING_R;
-function PercentRing({ percent, color }) {
+function PercentRing({ percent, color, trackColor = COLORS.line }) {
   const filled = RING_C * Math.max(0, Math.min(1, percent));
   return (
     <Svg width="100%" height="100%" viewBox="0 0 100 100" style={styles.ringSvg}>
-      <Circle cx={50} cy={50} r={RING_R} fill="none" stroke={COLORS.line} strokeWidth={9} />
+      <Circle cx={50} cy={50} r={RING_R} fill="none" stroke={trackColor} strokeWidth={9} />
       {percent > 0 && (
         <Circle
           cx={50} cy={50} r={RING_R} fill="none" stroke={color} strokeWidth={9}
@@ -474,6 +482,113 @@ const MonthlyReportCard = React.forwardRef(function MonthlyReportCard(props, ref
   );
 });
 
+// Divide uma lista em blocos de tamanho `size` — só usado para paginar
+// os calendários por campo a 4 por folha (ver `FieldCalendarsPage`).
+function chunk(arr, size) {
+  const out = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+// Um calendário de campo em miniatura, do tamanho certo para caberem
+// 4 numa grelha 2×2 numa folha A4 — mesma leitura visual das páginas do
+// carrossel (cor cheia = campo booleano marcado, anel = proporção da
+// meta num campo métrico, contorno neutro = sem registo), só que em
+// tema claro e a uma escala mais pequena. Os círculos e a grelha
+// reaproveitam a mesma técnica de `flex`/`aspectRatio` do resto do
+// relatório, por isso encolhem sozinhos com a largura do bloco — não há
+// nenhum tamanho fixo em píxeis a manter sincronizado à mão.
+function FieldMiniCalendar({ field, weeks, daysByDate, today, customFields, t, wide }) {
+  return (
+    <View style={[styles.reportFieldBlock, wide && styles.reportFieldBlockWide]}>
+      <View style={styles.reportFieldBlockHeader}>
+        <View style={[styles.reportFieldDot, { backgroundColor: field.color }]} />
+        <Text style={styles.reportFieldBlockName} numberOfLines={1}>{field.name}</Text>
+      </View>
+      <Text style={styles.reportFieldBlockKind}>
+        {field.kind === 'observation' ? t('config.kindObservation') : t('config.kindAnchor')}
+      </Text>
+      <View style={styles.reportMiniWeekHeaderRow}>
+        {['S', 'T', 'Q', 'Q', 'S', 'S', 'D'].map((d, i) => (
+          <Text key={i} style={styles.reportMiniWeekHeaderText}>{d}</Text>
+        ))}
+      </View>
+      {weeks.map((week, wi) => (
+        <View key={wi} style={styles.reportWeekRow}>
+          {week.map((cell, ci) => {
+            if (!cell) return <View key={ci} style={styles.reportMiniDayCell} />;
+            const s = computeDayState(cell.date, field, { today, daysByDate, customFields });
+            return (
+              <View key={ci} style={styles.reportMiniDayCell}>
+                <View style={[
+                  styles.reportMiniDayCircle,
+                  (s.kind === 'empty' || s.kind === 'ring') && styles.reportDayCircleNone,
+                  s.kind === 'future' && styles.reportDayCircleFuture,
+                  s.kind === 'on' && { backgroundColor: field.color, borderColor: field.color },
+                ]}>
+                  {s.kind === 'ring' && <PercentRing percent={s.percent} color={field.color} trackColor={REPORT.line} />}
+                  <Text style={[styles.reportMiniDayNumber, s.kind === 'on' && styles.reportMiniDayNumberOnColor]}>{cell.day}</Text>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      ))}
+      {field.type === 'bool' ? (
+        <View style={styles.reportMiniLegendRow}>
+          <View style={styles.reportLegendItem}><View style={[styles.reportLegendDot, { backgroundColor: field.color }]} /><Text style={styles.reportMiniLegendText}>{t('calendar.legendPartial')}</Text></View>
+          <View style={styles.reportLegendItem}><View style={[styles.reportLegendDot, styles.reportDayCircleNone]} /><Text style={styles.reportMiniLegendText}>{t('calendar.legendNone')}</Text></View>
+        </View>
+      ) : (
+        <View style={styles.reportMiniLegendRow}>
+          <Text style={styles.reportMiniLegendText}>{t('calendar.legendRingHint')}</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+// Uma folha A4 com até 4 calendários de campo lado a lado (2×2) —
+// pedido da Tania a 23/09/2026 depois de ver o relatório condensado:
+// os anéis de adesão do relatório principal dão o resumo, mas quem
+// quiser ver o padrão dia a dia de cada campo (não só a contagem) pega
+// nesta folha extra. Com mais de 4 campos configurados, o PDF ganha
+// mais uma destas folhas por cada grupo de 4 (ver `chunk`/`fieldChunks`
+// no `handleShare`) — nunca fica nenhum campo de fora.
+const FieldCalendarsPage = React.forwardRef(function FieldCalendarsPage(props, ref) {
+  const { fields, weeks, daysByDate, today, customFields, monthLabel, pageIndex, pageCount, t } = props;
+  // Quando esta é a última folha e sobram só 1-2 campos (ex.: 5 campos
+  // configurados = folha de 4 + folha de 1), os cartões ficam maiores e
+  // centrados em vez de encolhidos a um canto — uma folha impressa com
+  // um cartão perdido no topo esquerdo lê-se como erro, não como "coleção
+  // que cresce" (princípio 3 da spec).
+  const wide = fields.length <= 2;
+  return (
+    <View ref={ref} style={styles.reportPage} collapsable={false}>
+      <View style={styles.reportHeaderRow}>
+        <View style={styles.reportBrandRow}>
+          <ToucanMark size={30} />
+          <Text style={styles.reportBrandText}>{t('common.appName')}</Text>
+        </View>
+        <View style={styles.reportHeaderRight}>
+          <Text style={styles.reportSubtitle}>
+            {pageCount > 1
+              ? `${t('calendar.reportFieldsHeading')} · ${t('calendar.reportPageOf', { current: pageIndex + 1, total: pageCount })}`
+              : t('calendar.reportFieldsHeading')}
+          </Text>
+          <Text style={styles.reportMonthLabel}>{monthLabel}</Text>
+        </View>
+      </View>
+      <View style={styles.reportDivider} />
+      <View style={[styles.reportFieldsPageGrid, wide && styles.reportFieldsPageGridWide]}>
+        {fields.map((f) => (
+          <FieldMiniCalendar key={f.id} field={f} weeks={weeks} daysByDate={daysByDate} today={today} customFields={customFields} t={t} wide={wide} />
+        ))}
+      </View>
+    </View>
+  );
+});
+
 export default function CalendarShareScreen({ onClose }) {
   const { customFields, loadTrendDays, badgesData } = useData();
   const { t, language } = useLanguage();
@@ -488,6 +603,7 @@ export default function CalendarShareScreen({ onClose }) {
   const scrollRef = useRef(null);
   const pageRefs = useRef([]);
   const reportRef = useRef(null);
+  const fieldPageRefs = useRef([]);
 
   const today = todayISO();
   const weeks = useMemo(() => monthGrid(cursor.year, cursor.month), [cursor]);
@@ -520,6 +636,13 @@ export default function CalendarShareScreen({ onClose }) {
     { id: null, label: t('calendar.filterAll'), color: null, fieldObj: null },
     ...customFields.map((f) => ({ id: f.id, label: f.name, color: f.color, fieldObj: f })),
   ]), [customFields, t]);
+
+  // Folha(s) extra "por campo" do PDF — pedido da Tania a 23/09/2026:
+  // depois do relatório condensado (a folha principal), uma folha com
+  // até 4 calendários de campo lado a lado; com mais de 4 campos
+  // configurados, ganha mais uma folha por cada grupo de 4 (ver
+  // `FieldCalendarsPage`/`chunk`).
+  const fieldChunks = useMemo(() => chunk(customFields, 4), [customFields]);
 
   const safeIndex = Math.max(0, Math.min(fieldOptions.length - 1, activeIndex));
   const activeOption = fieldOptions[safeIndex] || fieldOptions[0];
@@ -608,40 +731,49 @@ export default function CalendarShareScreen({ onClose }) {
     return { dataUri: `data:image/png;base64,${base64}`, width: null, height: null };
   }
 
+  // Encaixa uma imagem capturada numa página A4 verdadeira (210×297mm)
+  // de um jsPDF já criado, sem nunca distorcer: pinta a página toda com
+  // o tom de fundo do relatório primeiro, e encosta a imagem ao topo à
+  // escala que couber (por largura, ou por altura se o conteúdo for
+  // excecionalmente alto — ex.: muitos campos). Sobra em branco (bege,
+  // igual ao fundo) fica sempre invisível, nunca uma emenda à vista.
+  // Partilhada pela folha do relatório e por cada folha "por campo".
+  function addA4Page(pdf, page, isFirst) {
+    const A4_W = 210;
+    const A4_H = 297;
+    if (!isFirst) pdf.addPage([A4_W, A4_H]);
+    pdf.setFillColor(247, 245, 239); // REPORT.bg
+    pdf.rect(0, 0, A4_W, A4_H, 'F');
+    let w = A4_W;
+    let h = A4_W * (page.height / page.width);
+    if (h > A4_H) { h = A4_H; w = A4_H * (page.width / page.height); }
+    const x = (A4_W - w) / 2;
+    pdf.addImage(page.dataUri, 'PNG', x, 0, w, h);
+  }
+
   // Retoque de 23/09/2026: o Partilhar deixou de percorrer um calendário
-  // por campo (era uma página por calendário) — passa a tirar UM único
-  // screenshot do relatório condensado (`reportRef`, o `MonthlyReportCard`
-  // montado escondido logo abaixo, sempre com proporção A4) e a
-  // transformá-lo numa única página de PDF pronta para imprimir. Pedido
-  // explícito da Tania depois de ver os filtros/carrossel em uso, com
-  // uma imagem de referência de um layout "dashboard" em folha A4.
+  // por campo (era uma página por calendário) — passa a gerar duas
+  // folhas de tipos diferentes: a 1.ª é o relatório condensado
+  // (`reportRef`, o `MonthlyReportCard` montado escondido logo abaixo);
+  // a seguir vêm uma ou mais folhas "por campo" (`fieldPageRefs`, até 4
+  // calendários por folha) — pedido dela mesma no dia seguinte, depois
+  // de ver o relatório condensado: os anéis dão o resumo, mas quem quer
+  // ver o padrão dia a dia de cada campo pega nestas folhas extra.
   async function handleShare() {
     setNote('');
     setSharing(true);
     try {
       await waitForPaint();
-      const page = await captureNode(reportRef.current);
+      const reportPage = await captureNode(reportRef.current);
+      const fieldPages = [];
+      for (let i = 0; i < fieldChunks.length; i++) {
+        fieldPages.push(await captureNode(fieldPageRefs.current[i]));
+      }
+      const allPages = [reportPage, ...fieldPages];
 
       if (Platform.OS === 'web') {
-        // Página A4 verdadeira (210×297mm) sempre — o conteúdo do
-        // relatório cresce com o número de campos (mais campos, cartão
-        // mais alto), por isso a altura capturada nem sempre enche a
-        // folha toda. Em vez de encolher/esticar o PDF à medida do
-        // conteúdo (o que deixava de ser uma "folha A4" a sério),
-        // pinta-se a página inteira com o tom de fundo do relatório e
-        // encaixa-se a imagem a partir do topo, sem distorcer — sobra
-        // só espaço em branco (bege) por baixo, igual ao fundo, nunca
-        // uma emenda visível.
-        const A4_W = 210;
-        const A4_H = 297;
-        const pdf = new jsPDF({ unit: 'mm', format: [A4_W, A4_H] });
-        pdf.setFillColor(247, 245, 239); // REPORT.bg
-        pdf.rect(0, 0, A4_W, A4_H, 'F');
-        let w = A4_W;
-        let h = A4_W * (page.height / page.width);
-        if (h > A4_H) { h = A4_H; w = A4_H * (page.width / page.height); }
-        const x = (A4_W - w) / 2;
-        pdf.addImage(page.dataUri, 'PNG', x, 0, w, h);
+        const pdf = new jsPDF({ unit: 'mm', format: [210, 297] });
+        allPages.forEach((page, i) => addA4Page(pdf, page, i === 0));
         const blob = pdf.output('blob');
         // O Web Share API só consegue anexar ficheiros reais (não um
         // link), por isso tentamos partilhar o PDF diretamente; se o
@@ -663,10 +795,13 @@ export default function CalendarShareScreen({ onClose }) {
           setNote(t('calendar.shareDownloaded'));
         }
       } else {
-        // iOS/Android: expo-print compõe a imagem num PDF de página
-        // única em formato A4 (595×842pt a 72dpi); a folha de partilha
-        // nativa que já tínhamos serve na mesma.
-        const html = `<!doctype html><html><head><meta charset="utf-8" /><style>@page { size: A4; margin: 0; }</style></head><body style="margin:0;padding:0;"><img src="${page.dataUri}" style="width:100%;display:block;" /></body></html>`;
+        // iOS/Android: expo-print compõe as imagens num PDF em formato
+        // A4 (595×842pt a 72dpi), uma página por imagem (quebra de
+        // página a seguir a cada uma); a folha de partilha nativa que
+        // já tínhamos serve na mesma.
+        const html = `<!doctype html><html><head><meta charset="utf-8" /><style>@page { size: A4; margin: 0; }</style></head><body style="margin:0;padding:0;">${allPages
+          .map((page) => `<div style="page-break-after:always;"><img src="${page.dataUri}" style="width:100%;display:block;" /></div>`)
+          .join('')}</body></html>`;
         const { uri } = await Print.printToFileAsync({ html, base64: false, width: 595, height: 842 });
         const available = await Sharing.isAvailableAsync();
         if (available) {
@@ -797,6 +932,21 @@ export default function CalendarShareScreen({ onClose }) {
           loggedCount={loggedCount}
           t={t}
         />
+        {fieldChunks.map((group, i) => (
+          <FieldCalendarsPage
+            key={i}
+            ref={(el) => { fieldPageRefs.current[i] = el; }}
+            fields={group}
+            weeks={weeks}
+            daysByDate={daysByDate}
+            today={today}
+            customFields={customFields}
+            monthLabel={monthLabel}
+            pageIndex={i}
+            pageCount={fieldChunks.length}
+            t={t}
+          />
+        ))}
       </View>
     </ScrollView>
   );
@@ -930,4 +1080,25 @@ const styles = StyleSheet.create({
   reportFieldDot: { width: 10, height: 10, borderRadius: 5 },
   reportFieldName: { fontSize: 13, color: REPORT.ink, fontFamily: FONTS.bodyBold, flexShrink: 1 },
   reportFieldKind: { fontSize: 10, color: REPORT.inkSoft, textTransform: 'uppercase', letterSpacing: 0.3 },
+
+  // Folha extra "Por campo" — grelha 2×2 de calendários em miniatura
+  // (ver `FieldCalendarsPage`/`FieldMiniCalendar`).
+  reportFieldsPageGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 24, justifyContent: 'center' },
+  reportFieldsPageGridWide: { marginTop: 32 },
+  reportFieldBlock: {
+    width: '46%', backgroundColor: REPORT.card, borderRadius: 14, borderWidth: 1,
+    borderColor: REPORT.line, padding: 16,
+  },
+  reportFieldBlockWide: { width: '60%', padding: 22 },
+  reportFieldBlockHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  reportFieldBlockName: { fontSize: 14, color: REPORT.ink, fontFamily: FONTS.bodyBold, flexShrink: 1 },
+  reportFieldBlockKind: { fontSize: 9.5, color: REPORT.inkSoft, textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 2, marginBottom: 12 },
+  reportMiniWeekHeaderRow: { flexDirection: 'row', marginBottom: 4 },
+  reportMiniWeekHeaderText: { flex: 1, textAlign: 'center', fontSize: 8, color: REPORT.inkSoft, fontFamily: FONTS.bodyBold },
+  reportMiniDayCell: { flex: 1, aspectRatio: 1, alignItems: 'center', justifyContent: 'center' },
+  reportMiniDayCircle: { width: '74%', height: '74%', borderRadius: 999, alignItems: 'center', justifyContent: 'center', borderWidth: 1.2, borderColor: 'transparent' },
+  reportMiniDayNumber: { fontSize: 8.5, color: REPORT.inkSoft, fontFamily: FONTS.bodyRegular },
+  reportMiniDayNumberOnColor: { color: '#fff', fontFamily: FONTS.bodyBold },
+  reportMiniLegendRow: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginTop: 10, flexWrap: 'wrap' },
+  reportMiniLegendText: { fontSize: 8.5, color: REPORT.inkSoft, textAlign: 'center' },
 });

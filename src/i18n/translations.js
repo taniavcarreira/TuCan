@@ -346,6 +346,7 @@ const ENTRIES = [
   ['calendar.swipeHint', 'Desliza o calendário para o lado para veres outro campo', 'Swipe the calendar sideways to see another field', 'Fais glisser le calendrier sur le côté pour voir un autre champ'],
   ['calendar.reportSubtitle', 'Resumo do mês', 'Month summary', 'Résumé du mois'],
   ['calendar.reportFieldsHeading', 'Por campo', 'By field', 'Par champ'],
+  ['calendar.reportPageOf', 'página {current} de {total}', 'page {current} of {total}', 'page {current} sur {total}'],
 
   // ---------- aviso de navegador incorporado ----------
   ['inapp.title', 'Estás a abrir isto dentro do {name}', "You're opening this inside {name}", 'Tu ouvres ceci dans {name}'],
