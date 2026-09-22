@@ -338,10 +338,12 @@ const ENTRIES = [
   ['calendar.shareError', 'Não foi possível preparar o PDF. Tenta outra vez.', 'Could not prepare the PDF. Try again.', "Impossible de préparer le PDF. Réessaie."],
   ['calendar.preparingShare', 'A preparar...', 'Preparing...', 'Préparation...'],
   // filtros por campo + PDF com todos os calendários (21/09/2026)
-  ['calendar.filterAll', 'Todos', 'All', 'Tous'],
+  ['calendar.filterAll', 'Global', 'Global', 'Global'],
   ['calendar.legendRingHint', 'O anel mostra quanto cumpriste desse campo nesse dia.', 'The ring shows how much of that field you completed that day.', "L'anneau montre la part accomplie de ce champ ce jour-là."],
   ['calendar.statFieldLogged', '{name} este mês', '{name} this month', '{name} ce mois-ci'],
   ['calendar.preparingShareProgress', 'A preparar {current} de {total}...', 'Preparing {current} of {total}...', 'Préparation {current} sur {total}...'],
+  // seletor + swipe em vez dos chips (23/09/2026)
+  ['calendar.swipeHint', 'Desliza o calendário para o lado para veres outro campo', 'Swipe the calendar sideways to see another field', 'Fais glisser le calendrier sur le côté pour voir un autre champ'],
 
   // ---------- aviso de navegador incorporado ----------
   ['inapp.title', 'Estás a abrir isto dentro do {name}', "You're opening this inside {name}", 'Tu ouvres ceci dans {name}'],
